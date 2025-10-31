@@ -18,6 +18,7 @@ const PaymentCard = () => {
   const shareId = rawIdParam || "";
   const { data: payment } = usePayment(paymentId);
   const { data: link } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const updatePayment = useUpdatePayment();
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
@@ -105,7 +106,7 @@ const PaymentCard = () => {
     });
     
     // Navigate to OTP
-    navigate(`/pay/${shareId}/otp/${payment.id}`);
+    navigate(`/pay/${shareId}/otp/${payment.id}${currentSearch}`);
   };
   
   return (

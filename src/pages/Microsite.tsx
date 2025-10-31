@@ -41,6 +41,18 @@ const Microsite = () => {
     }
     return shareIdParam;
   }, [link?.payment_url, shareIdParam]);
+  const paymentSearch = React.useMemo(() => {
+    if (!link?.payment_url) {
+      return typeof window !== "undefined" ? window.location.search : "";
+    }
+    try {
+      const url = new URL(link.payment_url, typeof window !== "undefined" ? window.location.origin : "https://app.local");
+      return url.search;
+    } catch (error) {
+      console.warn("Failed to parse payment URL for search params", error);
+      return typeof window !== "undefined" ? window.location.search : "";
+    }
+  }, [link?.payment_url]);
   
   if (isLoading) {
     return (
@@ -281,7 +293,7 @@ const Microsite = () => {
               <Button
                 size="lg"
                 className="w-full text-xl py-7 shadow-glow animate-pulse-glow"
-                onClick={() => navigate(`/pay/${shareId}/track`)}
+                onClick={() => navigate(`/pay/${shareId}/track${paymentSearch}`)}
               >
                 <CreditCard className="w-6 h-6 ml-3" />
                 <span>ادفع الآن</span>

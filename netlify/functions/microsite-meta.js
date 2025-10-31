@@ -97,28 +97,12 @@ const countryData = {
   BH: { nameAr: "مملكة البحرين", name: "Bahrain" }
 };
 
-const decodeSnapshot = (raw) => {
-  if (!raw) return null;
-  try {
-    let normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
-    while (normalized.length % 4 !== 0) {
-      normalized += '=';
-    }
-    const json = Buffer.from(normalized, 'base64').toString('utf-8');
-    return JSON.parse(json);
-  } catch (error) {
-    console.error('Failed to decode snapshot payload:', error);
-    return null;
-  }
-};
-
 exports.handler = async (event, context) => {
   const { path, queryStringParameters } = event;
   
   // Extract parameters from path: /r/:country/:type/:id or /pay/:id/...
   let pathMatch = path.match(/^\/r\/([A-Z]{2})\/(shipping|chalet)\/([^/?#]+)$/);
   let countryCode, type, id;
-  let snapshotFromPath = null;
   
   if (pathMatch) {
     [, countryCode, type, id] = pathMatch;
@@ -140,62 +124,36 @@ exports.handler = async (event, context) => {
   
   let country = countryData[countryCode];
   
+  if (queryStringParameters?.country) {
+    const queryCountry = queryStringParameters.country.toUpperCase();
+    if (countryData[queryCountry]) {
+      countryCode = queryCountry;
+      country = countryData[queryCountry];
+    }
+  }
+
   if (!country) {
     return {
       statusCode: 404,
       body: 'Country not found'
     };
   }
-  
-  let linkData = null;
 
-  if (id && id.includes('!')) {
-    const parts = id.split('!');
-    id = parts[0];
-    snapshotFromPath = parts[1] || null;
+  if (queryStringParameters?.type) {
+    type = queryStringParameters.type;
   }
-
-  if (queryStringParameters?.snapshot) {
-    linkData = decodeSnapshot(queryStringParameters.snapshot);
-  } else if (snapshotFromPath) {
-    linkData = decodeSnapshot(snapshotFromPath);
-  }
-  
-  // For payment pages, get country and type from link data if available
-  if (linkData?.country_code) {
-    countryCode = linkData.country_code;
-    const linkCountry = countryData[countryCode];
-    if (linkCountry) {
-      country = linkCountry;
-    }
-  }
-  
-  if (linkData?.type) {
-    type = linkData.type;
-  }
-  
-  // Debug logging
-  console.log('Link ID:', id);
-  console.log('Link Data:', linkData);
-  console.log('Query Parameters:', queryStringParameters);
-  console.log('Final Country:', countryCode, 'Type:', type);
-  
+ 
   let title = "";
   let description = "";
   let ogImage = "/og-aramex.jpg";
   let serviceKey = 'aramex'; // fallback
   const amountFromQuery = queryStringParameters?.amount ? decodeURIComponent(queryStringParameters.amount) : null;
   const trackingFromQuery = queryStringParameters?.tracking ? decodeURIComponent(queryStringParameters.tracking) : null;
+  const serviceNameFromQuery = queryStringParameters?.service_name ? decodeURIComponent(queryStringParameters.service_name) : null;
   
   if (type === "shipping") {
     // Determine service key from multiple sources
-    if (linkData?.payload?.service_key) {
-      serviceKey = linkData.payload.service_key;
-      console.log('Using service_key from payload:', serviceKey);
-    } else if (linkData?.payload?.service) {
-      serviceKey = linkData.payload.service;
-      console.log('Using service from payload:', serviceKey);
-    } else if (queryStringParameters?.service) {
+    if (queryStringParameters?.service) {
       serviceKey = queryStringParameters.service;
       console.log('Using service from query params:', serviceKey);
     } else {
@@ -204,7 +162,7 @@ exports.handler = async (event, context) => {
     
     serviceKey = (serviceKey || 'aramex').toLowerCase();
     const serviceInfo = serviceData[serviceKey] || serviceData.aramex;
-    const serviceName = linkData?.payload?.service_name || serviceInfo.name;
+    const serviceName = serviceNameFromQuery || serviceInfo.name;
     const [arabicName] = serviceName.split(' - ');
     const serviceDisplayName = (arabicName || serviceName || 'حلول الشحن').trim();
     
@@ -222,10 +180,8 @@ exports.handler = async (event, context) => {
     }`;
     ogImage = serviceInfo.ogImage;
     
-    const trackingReference = linkData?.payload?.tracking_number || trackingFromQuery;
-    const amountReference =
-      (linkData?.payload?.cod_amount && linkData.payload.cod_amount > 0 && linkData.payload.cod_amount)
-        || amountFromQuery;
+    const trackingReference = trackingFromQuery;
+    const amountReference = amountFromQuery;
 
     const sanitizedTracking = trackingReference ? `${trackingReference}`.trim() : null;
     const sanitizedAmount = amountReference !== null && amountReference !== undefined

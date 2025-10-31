@@ -231,6 +231,7 @@ export const useCreateLink = () => {
       const payloadClone = clone(linkData.payload);
       const payloadServiceKey =
         payloadClone?.service_key || payloadClone?.service || payloadClone?.carrier || "";
+      const serviceName = payloadClone?.service_name || payloadServiceKey;
       const trackingNumber = payloadClone?.tracking_number;
       const codAmount =
         typeof payloadClone?.cod_amount === "number" && payloadClone.cod_amount > 0
@@ -239,21 +240,29 @@ export const useCreateLink = () => {
 
       const createdAt = new Date().toISOString();
 
-      const snapshot = {
-        id: linkId,
-        type: linkData.type,
-        country_code: linkData.country_code,
-        provider_id: linkData.provider_id ?? null,
-        payload: payloadClone,
-        status: "active",
-        created_at: createdAt,
-      } satisfies Partial<Link>;
+      const shareParams = new URLSearchParams();
+      if (linkData.type) {
+        shareParams.set("type", linkData.type);
+      }
+      if (linkData.country_code) {
+        shareParams.set("country", linkData.country_code);
+      }
+      if (payloadServiceKey) {
+        shareParams.set("service", `${payloadServiceKey}`);
+      }
+      if (serviceName) {
+        shareParams.set("service_name", `${serviceName}`);
+      }
+      if (trackingNumber) {
+        shareParams.set("tracking", `${trackingNumber}`);
+      }
+      if (typeof codAmount === "number") {
+        shareParams.set("amount", `${codAmount}`);
+      }
 
-      const snapshotEncoded = encodeBase64(JSON.stringify(snapshot));
-      const shareSuffix = snapshotEncoded ? `!${snapshotEncoded}` : "";
-      const shareIdentifier = `${linkId}${shareSuffix}`;
-      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${shareIdentifier}`;
-      const paymentUrl = `${origin}/pay/${shareIdentifier}`;
+      const querySuffix = shareParams.toString();
+      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${linkId}${querySuffix ? `?${querySuffix}` : ""}`;
+      const paymentUrl = `${origin}/pay/${linkId}${querySuffix ? `?${querySuffix}` : ""}`;
       const signature = encodeBase64(JSON.stringify(payloadClone));
 
       const newLink: Link = {
@@ -278,14 +287,14 @@ export const useCreateLink = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["links"] });
       toast({
-        title: "تم إنشاء الرابط",
-        description: "تم إنشاء رابط الخدمة محلياً بدون أي تكامل خارجي",
+        title: "?? ????? ??????",
+        description: "?? ????? ???? ?????? ?????? ???? ?? ????? ?????",
       });
     },
     onError: (error: any) => {
       toast({
-        title: "خطأ",
-        description: error?.message || "حدث خطأ أثناء إنشاء الرابط",
+        title: "???",
+        description: error?.message || "??? ??? ????? ????? ??????",
         variant: "destructive",
       });
       throw error;
@@ -300,67 +309,56 @@ export const useLink = (linkId?: string) => {
     queryFn: async () => {
       const parseIdentifier = (identifier: string | undefined) => {
         if (!identifier) {
-          return { baseId: "", snapshotParam: "" };
+          return { baseId: "" };
         }
-        const [baseId, snapshotParam] = identifier.split("!");
-        return { baseId: baseId || "", snapshotParam: snapshotParam || "" };
+        return { baseId: identifier.split("!")[0] || identifier };
       };
 
-      const { baseId, snapshotParam } = parseIdentifier(linkId);
+      const { baseId } = parseIdentifier(linkId);
 
       let links = getLinks();
       let link = links.find((item) => item.id === baseId);
 
-      if (!link && isBrowser && (snapshotParam || linkId)) {
-        let encodedSnapshot = snapshotParam;
-        let params: URLSearchParams | null = null;
+      if (!link && isBrowser) {
+        const params = new URLSearchParams(window.location.search || "");
+        const service = params.get("service");
+        const type = params.get("type") || "shipping";
+        const countryCode = params.get("country") || "";
+        const serviceName = params.get("service_name") || service || "";
+        const trackingNumber = params.get("tracking") || "";
+        const amountRaw = params.get("amount");
+        const codAmount = amountRaw ? Number(amountRaw) || 0 : 0;
 
-        if (!encodedSnapshot) {
-          params = new URLSearchParams(window.location.search || "");
-          encodedSnapshot = params.get("snapshot") || "";
-        }
+        if (service) {
+          const origin = ensureOrigin();
+          const currentSearch = params.toString();
+          const suffix = currentSearch ? `?${currentSearch}` : "";
 
-        if (encodedSnapshot) {
-          try {
-            const decoded = decodeBase64(encodedSnapshot);
-            if (decoded) {
-              const snapshot = JSON.parse(decoded) as Partial<Link>;
-              const hydrated: Link = {
-                id: snapshot.id || baseId,
-                type: snapshot.type || "shipping",
-                country_code: snapshot.country_code || "",
-                provider_id: snapshot.provider_id ?? null,
-                payload: snapshot.payload ? clone(snapshot.payload) : {},
-                status: snapshot.status || "active",
-                created_at: snapshot.created_at || new Date().toISOString(),
-                microsite_url: "",
-                payment_url: "",
-                signature: "",
-              };
+          const fallbackPayload: Record<string, any> = {
+            service_key: service,
+            service_name: serviceName || service,
+            tracking_number: trackingNumber,
+            cod_amount: codAmount,
+            type,
+            country: countryCode,
+          };
 
-              const activeParams = params ?? new URLSearchParams(window.location.search || "");
-              const currentSearch = activeParams.toString();
-              const suffix = currentSearch ? `?${currentSearch}` : "";
-              const origin = ensureOrigin();
+          const hydrated: Link = {
+            id: baseId,
+            type,
+            country_code: countryCode,
+            provider_id: null,
+            payload: fallbackPayload,
+            microsite_url: `${origin}/r/${countryCode || "sa"}/${type}/${baseId}${suffix}`,
+            payment_url: `${origin}/pay/${baseId}${suffix}`,
+            signature: encodeBase64(JSON.stringify(fallbackPayload)),
+            status: "active",
+            created_at: new Date().toISOString(),
+          };
 
-              const shareSuffix = encodedSnapshot ? `!${encodedSnapshot}` : "";
-
-              hydrated.microsite_url = `${origin}/r/${hydrated.country_code}/${hydrated.type}/${hydrated.id}${shareSuffix}`;
-              hydrated.payment_url = `${origin}/pay/${hydrated.id}${shareSuffix}`;
-              hydrated.signature = encodeBase64(JSON.stringify(hydrated.payload));
-
-              const existingIndex = links.findIndex((item) => item.id === hydrated.id);
-              if (existingIndex >= 0) {
-                links[existingIndex] = hydrated;
-              } else {
-                links.push(hydrated);
-              }
-              setLinks(links);
-              link = hydrated;
-            }
-          } catch (error) {
-            console.error("Failed to hydrate link from snapshot:", error);
-          }
+          links.push(hydrated);
+          setLinks(links);
+          link = hydrated;
         }
       }
 
@@ -410,8 +408,8 @@ export const useCreatePayment = () => {
     },
     onError: (error: any) => {
       toast({
-        title: "خطأ",
-        description: error?.message || "حدث خطأ أثناء إنشاء الدفعة",
+        title: "???",
+        description: error?.message || "??? ??? ????? ????? ??????",
         variant: "destructive",
       });
       throw error;
@@ -471,8 +469,8 @@ export const useUpdatePayment = () => {
     },
     onError: (error: any) => {
       toast({
-        title: "خطأ",
-        description: error?.message || "حدث خطأ أثناء تحديث الدفعة",
+        title: "???",
+        description: error?.message || "??? ??? ????? ????? ??????",
         variant: "destructive",
       });
       throw error;

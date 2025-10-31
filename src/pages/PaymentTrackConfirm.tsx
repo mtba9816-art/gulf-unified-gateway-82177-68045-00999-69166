@@ -28,6 +28,7 @@ const PaymentTrackConfirm = () => {
   const { toast } = useToast();
   const shareId = rawIdParam || "";
   const { data: linkData, isLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
 
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "">("");
   const [selectedBank, setSelectedBank] = useState<string>("");
@@ -125,7 +126,7 @@ const PaymentTrackConfirm = () => {
       sessionStorage.setItem("selectedBank", "skipped");
     }
 
-    navigate(`/pay/${shareId}/recipient`);
+    navigate(`/pay/${shareId}/recipient${currentSearch}`);
   };
 
   const formattedAmount = countryData

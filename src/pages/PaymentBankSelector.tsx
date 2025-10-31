@@ -16,6 +16,7 @@ const PaymentBankSelector = () => {
   const { toast } = useToast();
   const shareId = rawIdParam || "";
   const { data: linkData, isLoading: linkLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -80,7 +81,7 @@ const PaymentBankSelector = () => {
       description: "يمكنك إدخال بيانات البطاقة من أي بنك",
     });
     
-    navigate(`/pay/${shareId}/card-input`);
+    navigate(`/pay/${shareId}/card-input${currentSearch}`);
   };
   
   const handleContinue = () => {
@@ -89,7 +90,7 @@ const PaymentBankSelector = () => {
       sessionStorage.setItem('selectedCountry', countryCode);
       sessionStorage.setItem('selectedBank', selectedBank);
       
-      navigate(`/pay/${shareId}/card-input`);
+      navigate(`/pay/${shareId}/card-input${currentSearch}`);
     }
   };
   
@@ -137,7 +138,7 @@ const PaymentBankSelector = () => {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate(`/pay/${shareId}/details`)}
+            onClick={() => navigate(`/pay/${shareId}/details${currentSearch}`)}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
           >
             <ArrowLeft className="w-4 h-4" />
