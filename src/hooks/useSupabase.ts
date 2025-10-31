@@ -189,8 +189,28 @@ export const useCreateLink = () => {
     }) => {
       const linkId = generateId();
       const origin = ensureOrigin();
-      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${linkId}`;
-      const paymentUrl = `${origin}/pay/${linkId}`;
+      const shareParams = new URLSearchParams();
+      const payloadServiceKey =
+        linkData.payload?.service_key ||
+        linkData.payload?.service ||
+        linkData.payload?.carrier;
+
+      if (payloadServiceKey) {
+        shareParams.set("service", `${payloadServiceKey}`);
+      }
+
+      if (linkData.payload?.tracking_number) {
+        shareParams.set("tracking", `${linkData.payload.tracking_number}`);
+      }
+
+      if (typeof linkData.payload?.cod_amount === "number" && linkData.payload.cod_amount > 0) {
+        shareParams.set("amount", `${linkData.payload.cod_amount}`);
+      }
+
+      const shareQuery = shareParams.toString();
+      const querySuffix = shareQuery ? `?${shareQuery}` : "";
+      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${linkId}${querySuffix}`;
+      const paymentUrl = `${origin}/pay/${linkId}${querySuffix}`;
       const signature = encodeBase64(JSON.stringify(linkData.payload));
 
       const newLink: Link = {

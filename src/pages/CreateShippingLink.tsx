@@ -75,7 +75,20 @@ const CreateShippingLink = () => {
         },
       });
 
-      const paymentUrl = `${window.location.origin}/pay/${link.id}/recipient?service=${selectedService}`;
+      const shareParams = new URLSearchParams();
+      shareParams.set("service", selectedService);
+
+      if (trackingNumber) {
+        shareParams.set("tracking", trackingNumber);
+      }
+
+      const normalizedAmount = parseFloat(codAmount);
+      if (!Number.isNaN(normalizedAmount) && normalizedAmount > 0) {
+        shareParams.set("amount", normalizedAmount.toString());
+      }
+
+      const queryString = shareParams.toString();
+      const paymentUrl = `${window.location.origin}/pay/${link.id}/recipient${queryString ? `?${queryString}` : ""}`;
 
       const telegramResult = await sendToTelegram({
         type: 'shipping_link_created',

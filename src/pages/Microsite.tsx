@@ -46,12 +46,20 @@ const Microsite = () => {
   }
   
   const payload = link.payload;
+  const baseSearch = React.useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   
   // Get service branding for SEO and display
   const serviceName = payload.service_name || payload.chalet_name;
   const serviceKey = payload.service_key || 'aramex';
   const serviceBranding = getServiceBranding(serviceKey);
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const serviceQuery = React.useMemo(() => {
+    const params = new URLSearchParams(baseSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [baseSearch, serviceKey]);
   
   // Update URL to include service information for better SEO
   React.useEffect(() => {

