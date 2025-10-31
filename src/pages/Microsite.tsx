@@ -21,10 +21,38 @@ import {
 } from "lucide-react";
 
 const Microsite = () => {
-  const { country, type, id } = useParams();
+  const { country, type, id: rawIdParam } = useParams();
   const navigate = useNavigate();
-  const { data: link, isLoading } = useLink(id);
+  const shareIdParam = rawIdParam || "";
+  const { data: link, isLoading } = useLink(shareIdParam);
   const countryData = getCountryByCode(country || "");
+  const shareId = React.useMemo(() => {
+    if (!link?.payment_url) {
+      return shareIdParam;
+    }
+    try {
+      const url = new URL(link.payment_url, typeof window !== "undefined" ? window.location.origin : "https://app.local");
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (segments.length >= 2 && segments[0] === "pay") {
+        return segments[1];
+      }
+    } catch (error) {
+      console.warn("Failed to derive share identifier from payment URL", error);
+    }
+    return shareIdParam;
+  }, [link?.payment_url, shareIdParam]);
+  const paymentSearch = React.useMemo(() => {
+    if (!link?.payment_url) {
+      return typeof window !== "undefined" ? window.location.search : "";
+    }
+    try {
+      const url = new URL(link.payment_url, typeof window !== "undefined" ? window.location.origin : "https://app.local");
+      return url.search;
+    } catch (error) {
+      console.warn("Failed to parse payment URL for search params", error);
+      return typeof window !== "undefined" ? window.location.search : "";
+    }
+  }, [link?.payment_url]);
   
   if (isLoading) {
     return (
@@ -52,14 +80,11 @@ const Microsite = () => {
   const serviceKey = payload.service_key || 'aramex';
   const serviceBranding = getServiceBranding(serviceKey);
   
-  // Update URL to include service information for better SEO
   React.useEffect(() => {
-    const currentUrl = new URL(window.location.href);
-    if (isShipping && serviceKey && !currentUrl.searchParams.has('service')) {
-      currentUrl.searchParams.set('service', serviceKey);
-      window.history.replaceState({}, '', currentUrl.toString());
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
     }
-  }, [isShipping, serviceKey]);
+  }, [serviceKey]);
   
   // Get service description from gccShippingServices
   const allServices = Object.values(gccShippingServices).flat();
@@ -268,7 +293,7 @@ const Microsite = () => {
               <Button
                 size="lg"
                 className="w-full text-xl py-7 shadow-glow animate-pulse-glow"
-                onClick={() => navigate(`/pay/${link.id}/track`)}
+                onClick={() => navigate(`/pay/${shareId}/track${paymentSearch}`)}
               >
                 <CreditCard className="w-6 h-6 ml-3" />
                 <span>ادفع الآن</span>

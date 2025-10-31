@@ -3,7 +3,5 @@
   "version": "1.0.0",
   "description": "Netlify Functions for microsite meta tags",
   "main": "microsite-meta.js",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
-  }
+  "dependencies": {}
 }

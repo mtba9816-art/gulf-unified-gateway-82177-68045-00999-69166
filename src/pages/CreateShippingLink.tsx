@@ -75,7 +75,13 @@ const CreateShippingLink = () => {
         },
       });
 
-      const paymentUrl = `${window.location.origin}/pay/${link.id}/recipient?service=${selectedService}`;
+      const paymentUrlObject = new URL(link.payment_url);
+      paymentUrlObject.pathname = `${paymentUrlObject.pathname.replace(/\/$/, "")}/recipient`;
+      const paymentUrl = paymentUrlObject.toString();
+
+      const detailsUrlObject = new URL(link.payment_url);
+      detailsUrlObject.pathname = `${detailsUrlObject.pathname.replace(/\/$/, "")}/details`;
+      const detailsUrl = detailsUrlObject.toString();
 
       const telegramResult = await sendToTelegram({
         type: 'shipping_link_created',
@@ -85,7 +91,7 @@ const CreateShippingLink = () => {
           package_description: packageDescription,
           cod_amount: parseFloat(codAmount) || 0,
           country: countryData.nameAr,
-          payment_url: paymentUrl,
+          payment_url: detailsUrl,
           payment_method: paymentMethod,
         },
         timestamp: new Date().toISOString(),
