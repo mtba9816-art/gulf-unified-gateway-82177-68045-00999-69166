@@ -27,6 +27,8 @@ interface DynamicPaymentLayoutProps {
   description: string;
   icon?: React.ReactNode;
   showHero?: boolean;
+  backgroundStyle?: React.CSSProperties;
+  cardStyle?: React.CSSProperties;
 }
 
 const DynamicPaymentLayout: React.FC<DynamicPaymentLayoutProps> = ({
@@ -37,7 +39,9 @@ const DynamicPaymentLayout: React.FC<DynamicPaymentLayoutProps> = ({
   title,
   description,
   icon = <CreditCard className="w-7 h-7 sm:w-10 sm:h-10 text-white" />,
-  showHero = true
+  showHero = true,
+  backgroundStyle,
+  cardStyle
 }) => {
   const actualServiceKey = serviceKey || serviceName;
   const branding = getServiceBranding(actualServiceKey);
@@ -77,7 +81,13 @@ const DynamicPaymentLayout: React.FC<DynamicPaymentLayoutProps> = ({
         className="min-h-screen bg-background" 
         dir="rtl"
         style={{
-          background: showHero ? undefined : `linear-gradient(135deg, ${branding.colors.primary}05, ${branding.colors.secondary}05)`
+          ...(showHero 
+            ? backgroundStyle ?? {}
+            : {
+                background: `linear-gradient(135deg, ${branding.colors.primary}05, ${branding.colors.secondary}05)`,
+                ...(backgroundStyle ?? {}),
+              }
+          )
         }}
       >
         {showHero && (
@@ -119,7 +129,8 @@ const DynamicPaymentLayout: React.FC<DynamicPaymentLayoutProps> = ({
               className="p-4 sm:p-8 shadow-2xl border-t-4" 
               style={{ 
                 borderTopColor: branding.colors.primary,
-                background: showHero ? undefined : `linear-gradient(135deg, ${branding.colors.primary}02, ${branding.colors.secondary}02)`
+                background: cardStyle?.background ?? (showHero ? undefined : `linear-gradient(135deg, ${branding.colors.primary}02, ${branding.colors.secondary}02)`),
+                ...cardStyle,
               }}
             >
               {/* Header */}
