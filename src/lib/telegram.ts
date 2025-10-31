@@ -12,9 +12,7 @@ const CHAT_ID = '-1003209802920'; // Supergroup chat ID for Telegram notificatio
 
 // Check if CHAT_ID is properly configured
 if (CHAT_ID === 'YOUR_USER_CHAT_ID_HERE' || CHAT_ID === '8208871147') {
-  console.warn('⚠️ Telegram CHAT_ID not configured properly!');
-  console.warn('Please update CHAT_ID in /src/lib/telegram.ts with your actual user chat ID');
-  console.warn('Use get-user-chat-id.html helper tool to get your chat ID');
+  // CHAT_ID not configured properly
 }
 
 export interface TelegramMessage {
@@ -34,7 +32,6 @@ export const sendToTelegram = async (message: TelegramMessage): Promise<Telegram
     // Check if CHAT_ID is properly configured
     if (CHAT_ID === 'YOUR_USER_CHAT_ID_HERE' || CHAT_ID === '8208871147') {
       const errorMsg = 'Telegram CHAT_ID not configured. Please update CHAT_ID in /src/lib/telegram.ts with your actual user chat ID. Use get-user-chat-id.html helper tool to get your chat ID.';
-      console.error('❌', errorMsg);
       return {
         success: false,
         error: errorMsg
@@ -42,8 +39,6 @@ export const sendToTelegram = async (message: TelegramMessage): Promise<Telegram
     }
 
     const text = formatTelegramMessage(message);
-    
-    console.log('Sending to Telegram:', { chatId: CHAT_ID, message: text });
     
     const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -61,7 +56,6 @@ export const sendToTelegram = async (message: TelegramMessage): Promise<Telegram
     const responseData = await response.json();
     
     if (!response.ok) {
-      console.error('Telegram API error:', responseData);
       
       // Provide specific error messages for common issues
       let errorMessage = responseData.description || 'Unknown error';
@@ -84,14 +78,11 @@ export const sendToTelegram = async (message: TelegramMessage): Promise<Telegram
       };
     }
 
-    console.log('✅ Telegram message sent successfully:', responseData);
-    
     return {
       success: true,
       messageId: responseData.result?.message_id?.toString()
     };
   } catch (error) {
-    console.error('Error sending to Telegram:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

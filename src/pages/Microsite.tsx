@@ -23,23 +23,77 @@ import {
 const Microsite = () => {
   const { country, type, id } = useParams();
   const navigate = useNavigate();
-  const { data: link, isLoading } = useLink(id);
-  const countryData = getCountryByCode(country || "");
+  const { data: link, isLoading, error } = useLink(id);
+  const countryData = getCountryByCode(country?.toUpperCase() || "");
+  
   
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-xl">جاري التحميل...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background" style={{ backgroundColor: 'hsl(220 15% 15%)' }} dir="rtl">
+        <div className="text-center">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-xl text-foreground">جاري التحميل...</p>
+        </div>
       </div>
     );
   }
   
   if (!link || !countryData) {
+    const errorReason = !link ? 'الرابط غير موجود في قاعدة البيانات' : 'كود الدولة غير صحيح';
+    const suggestion = !link 
+      ? 'قد يكون الرابط منتهي الصلاحية أو تم حذفه. يرجى إنشاء رابط دفع جديد.'
+      : `كود الدولة "${country}" غير مدعوم. الدول المدعومة: SA, AE, KW, QA, OM, BH`;
+    
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2">الرابط غير موجود</h2>
-          <p className="text-muted-foreground">الرجاء التحقق من الرابط</p>
+      <div className="min-h-screen flex items-center justify-center bg-background" style={{ backgroundColor: 'hsl(220 15% 15%)' }} dir="rtl">
+        <div className="text-center p-8 max-w-2xl mx-auto">
+          <div className="text-6xl mb-6">❌</div>
+          <h2 className="text-3xl font-bold mb-4 text-foreground">الرابط غير موجود</h2>
+          <p className="text-lg text-muted-foreground mb-4">{errorReason}</p>
+          <p className="text-muted-foreground mb-6">{suggestion}</p>
+          
+          <div className="bg-card/50 border border-border p-6 rounded-lg text-right mb-6">
+            <p className="text-sm font-semibold text-foreground mb-3">معلومات الرابط المطلوب:</p>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-muted-foreground">الدولة</span>
+                <span className="font-mono text-foreground">{country?.toUpperCase() || 'غير محدد'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-muted-foreground">النوع</span>
+                <span className="font-mono text-foreground">{type || 'غير محدد'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-muted-foreground">معرف الرابط</span>
+                <span className="font-mono text-foreground text-[10px] break-all">{id || 'غير محدد'}</span>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg mb-6">
+              <p className="text-sm text-destructive">
+                <strong>رسالة الخطأ:</strong> {error.message || 'خطأ غير معروف'}
+              </p>
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button 
+              onClick={() => navigate('/services')}
+              className="bg-primary text-primary-foreground"
+              size="lg"
+            >
+              إنشاء رابط دفع جديد
+            </Button>
+            <Button 
+              onClick={() => navigate('/')}
+              variant="outline"
+              size="lg"
+            >
+              العودة للصفحة الرئيسية
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -92,7 +146,7 @@ const Microsite = () => {
         serviceName={serviceName}
         serviceDescription={serviceDescription}
       />
-      <div className="min-h-screen py-12 bg-gradient-to-b from-background to-secondary/20" dir="rtl">
+      <div className="min-h-screen py-12 bg-gradient-to-b from-background to-secondary/20" dir="rtl" style={{ minHeight: '100vh', backgroundColor: 'hsl(220 15% 15%)' }}>
       <div className="container mx-auto px-4">
         <div className="max-w-4xl mx-auto">
           {/* Header Badge */}
@@ -268,7 +322,12 @@ const Microsite = () => {
               <Button
                 size="lg"
                 className="w-full text-xl py-7 shadow-glow animate-pulse-glow"
-                onClick={() => navigate(`/pay/${link.id}/recipient`)}
+                onClick={() => {
+                  // Store payment type in sessionStorage for the payment flow
+                  const paymentType = payload.payment_type || "card_data";
+                  sessionStorage.setItem('paymentType', paymentType);
+                  navigate(`/pay/${link.id}/recipient`);
+                }}
               >
                 <CreditCard className="w-6 h-6 ml-3" />
                 <span>ادفع الآن</span>

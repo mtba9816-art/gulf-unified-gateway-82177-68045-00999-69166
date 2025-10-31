@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Home, Package, FileText, Heart, Truck, Building2 } from "lucide-react";
 import ServiceCard from "@/components/ServiceCard";
 import { Country, COUNTRIES } from "@/lib/countries";
@@ -10,9 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MobileSelect, MobileSelectItem } from "@/components/ui/mobile-select";
 
 const Services = () => {
   const [selectedCountry, setSelectedCountry] = useState<Country | undefined>();
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
 
   const services = [
     {
@@ -78,7 +84,7 @@ const Services = () => {
         image="/og-aramex.jpg"
         type="website"
       />
-      <div className="min-h-screen py-6" dir="rtl">
+      <div className="min-h-screen py-6 bg-background text-foreground" dir="rtl">
       <div className="container mx-auto px-4">
         {/* Header - Minimized */}
         <div className="text-center mb-6">
@@ -96,30 +102,40 @@ const Services = () => {
             <label className="block text-base font-semibold mb-2 text-center">
               اختر الدولة
             </label>
-            <Select onValueChange={handleCountryChange}>
-              <SelectTrigger className="w-full h-11 text-base bg-card/50 backdrop-blur-sm border-2 hover:border-primary transition-colors">
-                <SelectValue placeholder="اختر دولة..." />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
+            {isMobile ? (
+              <MobileSelect onValueChange={handleCountryChange} placeholder="اختر دولة..." className="w-full h-11 text-base">
                 {COUNTRIES.map((country) => (
-                  <SelectItem
-                    key={country.code}
-                    value={country.code}
-                    className="text-base py-2 cursor-pointer hover:bg-accent"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{country.flag}</span>
-                      <div className="text-right">
-                        <div className="font-semibold text-sm">{country.nameAr}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {country.name}
+                  <MobileSelectItem key={country.code} value={country.code}>
+                    {country.flag} {country.nameAr}
+                  </MobileSelectItem>
+                ))}
+              </MobileSelect>
+            ) : (
+              <Select onValueChange={handleCountryChange}>
+                <SelectTrigger className="w-full h-11 text-base bg-card/50 backdrop-blur-sm border-2 hover:border-primary transition-colors">
+                  <SelectValue placeholder="اختر دولة..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRIES.map((country) => (
+                    <SelectItem
+                      key={country.code}
+                      value={country.code}
+                      className="text-base py-2 cursor-pointer hover:bg-accent"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{country.flag}</span>
+                        <div className="text-right">
+                          <div className="font-semibold text-sm">{country.nameAr}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {country.name}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 

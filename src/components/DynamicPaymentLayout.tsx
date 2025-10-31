@@ -74,10 +74,11 @@ const DynamicPaymentLayout: React.FC<DynamicPaymentLayoutProps> = ({
         description={description}
       />
       <div 
-        className="min-h-screen bg-background" 
+        className="min-h-screen bg-background text-foreground" 
         dir="rtl"
         style={{
-          background: showHero ? undefined : `linear-gradient(135deg, ${branding.colors.primary}05, ${branding.colors.secondary}05)`
+          background: showHero ? 'hsl(220 15% 15%)' : `linear-gradient(135deg, ${branding.colors.primary}05, ${branding.colors.secondary}05)`,
+          minHeight: '100vh'
         }}
       >
         {showHero && (

