@@ -3,16 +3,6 @@
   command = "npm run build"
 
 [[redirects]]
-  from = "/r/*"
-  to = "/.netlify/functions/microsite-meta"
-  status = 200
-
-[[redirects]]
-  from = "/pay/*"
-  to = "/.netlify/functions/microsite-meta"
-  status = 200
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

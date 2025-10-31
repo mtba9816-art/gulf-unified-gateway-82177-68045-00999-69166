@@ -1,1 +1,0 @@
-{"functions":[{"bundler":"zisi","buildData":{"runtimeAPIVersion":1},"mainFile":"/workspace/netlify/functions/microsite-meta.js","name":"microsite-meta","priority":10,"runtimeVersion":"nodejs22.x","path":"/workspace/.netlify/functions/microsite-meta.zip","runtime":"js"}],"system":{"arch":"x64","platform":"linux"},"timestamp":1761715522310,"version":1}
