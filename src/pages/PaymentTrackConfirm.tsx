@@ -23,15 +23,15 @@ import FullScreenLoader from "@/components/FullScreenLoader";
 type PaymentMethod = "card" | "login";
 
 const PaymentTrackConfirm = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading } = useLink(id);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
 
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "">("");
   const [selectedBank, setSelectedBank] = useState<string>("");
 
-  const baseSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlServiceKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("service") : null;
   const storedServiceKey = typeof window !== "undefined" ? sessionStorage.getItem("serviceKey") : null;
 
@@ -51,14 +51,6 @@ const PaymentTrackConfirm = () => {
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const banks = useMemo<Bank[]>(() => getBanksByCountry(countryCode?.toUpperCase() || ""), [countryCode]);
-  const persistedSearch = useMemo(() => {
-    const params = new URLSearchParams(baseSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [baseSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
@@ -133,7 +125,7 @@ const PaymentTrackConfirm = () => {
       sessionStorage.setItem("selectedBank", "skipped");
     }
 
-    navigate(`/pay/${id}/recipient${persistedSearch}`);
+    navigate(`/pay/${shareId}/recipient`);
   };
 
   const formattedAmount = countryData

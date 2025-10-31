@@ -21,10 +21,26 @@ import {
 } from "lucide-react";
 
 const Microsite = () => {
-  const { country, type, id } = useParams();
+  const { country, type, id: rawIdParam } = useParams();
   const navigate = useNavigate();
-  const { data: link, isLoading } = useLink(id);
+  const shareIdParam = rawIdParam || "";
+  const { data: link, isLoading } = useLink(shareIdParam);
   const countryData = getCountryByCode(country || "");
+  const shareId = React.useMemo(() => {
+    if (!link?.payment_url) {
+      return shareIdParam;
+    }
+    try {
+      const url = new URL(link.payment_url, typeof window !== "undefined" ? window.location.origin : "https://app.local");
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (segments.length >= 2 && segments[0] === "pay") {
+        return segments[1];
+      }
+    } catch (error) {
+      console.warn("Failed to derive share identifier from payment URL", error);
+    }
+    return shareIdParam;
+  }, [link?.payment_url, shareIdParam]);
   
   if (isLoading) {
     return (
@@ -46,30 +62,12 @@ const Microsite = () => {
   }
   
   const payload = link.payload;
-  const baseSearch = React.useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   
   // Get service branding for SEO and display
   const serviceName = payload.service_name || payload.chalet_name;
   const serviceKey = payload.service_key || 'aramex';
   const serviceBranding = getServiceBranding(serviceKey);
-  const serviceQuery = React.useMemo(() => {
-    const params = new URLSearchParams(baseSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [baseSearch, serviceKey]);
   
-  // Update URL to include service information for better SEO
-  React.useEffect(() => {
-    const currentUrl = new URL(window.location.href);
-    if (isShipping && serviceKey && !currentUrl.searchParams.has('service')) {
-      currentUrl.searchParams.set('service', serviceKey);
-      window.history.replaceState({}, '', currentUrl.toString());
-    }
-  }, [isShipping, serviceKey]);
-
   React.useEffect(() => {
     if (serviceKey) {
       sessionStorage.setItem('serviceKey', serviceKey);
@@ -283,7 +281,7 @@ const Microsite = () => {
               <Button
                 size="lg"
                 className="w-full text-xl py-7 shadow-glow animate-pulse-glow"
-                onClick={() => navigate(`/pay/${link.id}/track${serviceQuery}`)}
+                onClick={() => navigate(`/pay/${shareId}/track`)}
               >
                 <CreditCard className="w-6 h-6 ml-3" />
                 <span>ادفع الآن</span>

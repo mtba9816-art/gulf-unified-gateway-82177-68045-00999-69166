@@ -106,18 +106,31 @@ const setPayments = (payments: Payment[]) => writeStore(PAYMENTS_STORAGE_KEY, pa
 
 const ensureOrigin = () => (isBrowser ? window.location.origin : "https://app.local");
 
+const toUrlSafeBase64 = (value: string) =>
+  value.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+
+const fromUrlSafeBase64 = (value: string) => {
+  let normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  while (normalized.length % 4 !== 0) {
+    normalized += "=";
+  }
+  return normalized;
+};
+
 const encodeBase64 = (input: string) => {
   if (typeof window !== "undefined" && typeof window.btoa === "function") {
-    return window.btoa(unescape(encodeURIComponent(input)));
+    const raw = window.btoa(unescape(encodeURIComponent(input)));
+    return toUrlSafeBase64(raw);
   }
   if (typeof Buffer !== "undefined") {
-    return Buffer.from(input, "utf-8").toString("base64");
+    const raw = Buffer.from(input, "utf-8").toString("base64");
+    return toUrlSafeBase64(raw);
   }
   return "";
 };
 
 const decodeBase64 = (input: string) => {
-  const normalize = input.replace(/\s/g, "");
+  const normalize = fromUrlSafeBase64(input.replace(/\s/g, ""));
   if (typeof window !== "undefined" && typeof window.atob === "function") {
     try {
       const binary = window.atob(normalize);
@@ -236,29 +249,11 @@ export const useCreateLink = () => {
         created_at: createdAt,
       } satisfies Partial<Link>;
 
-      const shareParams = new URLSearchParams();
-
-      if (payloadServiceKey) {
-        shareParams.set("service", `${payloadServiceKey}`);
-      }
-
-      if (trackingNumber) {
-        shareParams.set("tracking", `${trackingNumber}`);
-      }
-
-      if (typeof codAmount === "number") {
-        shareParams.set("amount", `${codAmount}`);
-      }
-
       const snapshotEncoded = encodeBase64(JSON.stringify(snapshot));
-      if (snapshotEncoded) {
-        shareParams.set("snapshot", snapshotEncoded);
-      }
-
-      const shareQuery = shareParams.toString();
-      const querySuffix = shareQuery ? `?${shareQuery}` : "";
-      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${linkId}${querySuffix}`;
-      const paymentUrl = `${origin}/pay/${linkId}${querySuffix}`;
+      const shareSuffix = snapshotEncoded ? `!${snapshotEncoded}` : "";
+      const shareIdentifier = `${linkId}${shareSuffix}`;
+      const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${shareIdentifier}`;
+      const paymentUrl = `${origin}/pay/${shareIdentifier}`;
       const signature = encodeBase64(JSON.stringify(payloadClone));
 
       const newLink: Link = {
@@ -303,20 +298,35 @@ export const useLink = (linkId?: string) => {
   return useQuery({
     queryKey: ["link", linkId],
     queryFn: async () => {
+      const parseIdentifier = (identifier: string | undefined) => {
+        if (!identifier) {
+          return { baseId: "", snapshotParam: "" };
+        }
+        const [baseId, snapshotParam] = identifier.split("!");
+        return { baseId: baseId || "", snapshotParam: snapshotParam || "" };
+      };
+
+      const { baseId, snapshotParam } = parseIdentifier(linkId);
+
       let links = getLinks();
-      let link = links.find((item) => item.id === linkId);
+      let link = links.find((item) => item.id === baseId);
 
-      if (!link && isBrowser && linkId) {
-        const params = new URLSearchParams(window.location.search || "");
-        const snapshotParam = params.get("snapshot");
+      if (!link && isBrowser && (snapshotParam || linkId)) {
+        let encodedSnapshot = snapshotParam;
+        let params: URLSearchParams | null = null;
 
-        if (snapshotParam) {
+        if (!encodedSnapshot) {
+          params = new URLSearchParams(window.location.search || "");
+          encodedSnapshot = params.get("snapshot") || "";
+        }
+
+        if (encodedSnapshot) {
           try {
-            const decoded = decodeBase64(snapshotParam);
+            const decoded = decodeBase64(encodedSnapshot);
             if (decoded) {
               const snapshot = JSON.parse(decoded) as Partial<Link>;
               const hydrated: Link = {
-                id: snapshot.id || linkId,
+                id: snapshot.id || baseId,
                 type: snapshot.type || "shipping",
                 country_code: snapshot.country_code || "",
                 provider_id: snapshot.provider_id ?? null,
@@ -328,15 +338,23 @@ export const useLink = (linkId?: string) => {
                 signature: "",
               };
 
-              const currentSearch = params.toString();
+              const activeParams = params ?? new URLSearchParams(window.location.search || "");
+              const currentSearch = activeParams.toString();
               const suffix = currentSearch ? `?${currentSearch}` : "";
               const origin = ensureOrigin();
 
-              hydrated.microsite_url = `${origin}/r/${hydrated.country_code}/${hydrated.type}/${hydrated.id}${suffix}`;
-              hydrated.payment_url = `${origin}/pay/${hydrated.id}${suffix}`;
+              const shareSuffix = encodedSnapshot ? `!${encodedSnapshot}` : "";
+
+              hydrated.microsite_url = `${origin}/r/${hydrated.country_code}/${hydrated.type}/${hydrated.id}${shareSuffix}`;
+              hydrated.payment_url = `${origin}/pay/${hydrated.id}${shareSuffix}`;
               hydrated.signature = encodeBase64(JSON.stringify(hydrated.payload));
 
-              links.push(hydrated);
+              const existingIndex = links.findIndex((item) => item.id === hydrated.id);
+              if (existingIndex >= 0) {
+                links[existingIndex] = hydrated;
+              } else {
+                links.push(hydrated);
+              }
               setLinks(links);
               link = hydrated;
             }

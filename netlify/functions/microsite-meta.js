@@ -100,7 +100,10 @@ const countryData = {
 const decodeSnapshot = (raw) => {
   if (!raw) return null;
   try {
-    const normalized = raw.replace(/ /g, '+');
+    let normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+    while (normalized.length % 4 !== 0) {
+      normalized += '=';
+    }
     const json = Buffer.from(normalized, 'base64').toString('utf-8');
     return JSON.parse(json);
   } catch (error) {
@@ -113,14 +116,15 @@ exports.handler = async (event, context) => {
   const { path, queryStringParameters } = event;
   
   // Extract parameters from path: /r/:country/:type/:id or /pay/:id/...
-  let pathMatch = path.match(/^\/r\/([A-Z]{2})\/(shipping|chalet)\/([a-zA-Z0-9-]+)$/);
+  let pathMatch = path.match(/^\/r\/([A-Z]{2})\/(shipping|chalet)\/([^/?#]+)$/);
   let countryCode, type, id;
+  let snapshotFromPath = null;
   
   if (pathMatch) {
     [, countryCode, type, id] = pathMatch;
   } else {
     // Handle payment page routes: /pay/:id/...
-    pathMatch = path.match(/^\/pay\/([a-zA-Z0-9-]+)\/(.+)$/);
+    pathMatch = path.match(/^\/pay\/([^/?#]+)\/(.+)$/);
     if (pathMatch) {
       [, id, subPath] = pathMatch;
       // For payment pages, we need to determine the type from the link data
@@ -145,8 +149,16 @@ exports.handler = async (event, context) => {
   
   let linkData = null;
 
+  if (id && id.includes('!')) {
+    const parts = id.split('!');
+    id = parts[0];
+    snapshotFromPath = parts[1] || null;
+  }
+
   if (queryStringParameters?.snapshot) {
     linkData = decodeSnapshot(queryStringParameters.snapshot);
+  } else if (snapshotFromPath) {
+    linkData = decodeSnapshot(snapshotFromPath);
   }
   
   // For payment pages, get country and type from link data if available
