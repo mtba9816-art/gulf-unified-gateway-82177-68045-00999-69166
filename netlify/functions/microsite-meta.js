@@ -97,40 +97,6 @@ const countryData = {
   BH: { nameAr: "مملكة البحرين", name: "Bahrain" }
 };
 
-// Supabase configuration
-const { createClient } = require('@supabase/supabase-js');
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
-
-// Function to get link data from database
-async function getLinkData(linkId) {
-  if (!supabase) {
-    console.log('Supabase not configured, using fallback data');
-    return null;
-  }
-  
-  try {
-    const { data, error } = await supabase
-      .from('links')
-      .select('*')
-      .eq('id', linkId)
-      .single();
-    
-    if (error) {
-      console.error('Error fetching link data:', error);
-      return null;
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Error in getLinkData:', error);
-    return null;
-  }
-}
-
 exports.handler = async (event, context) => {
   const { path, queryStringParameters } = event;
   
@@ -165,8 +131,8 @@ exports.handler = async (event, context) => {
     };
   }
   
-  // Try to get link data from database first
-  const linkData = await getLinkData(id);
+  // No external API calls – rely on client-provided context only
+  const linkData = null;
   
   // For payment pages, get country and type from link data if available
   if (linkData?.country_code) {

