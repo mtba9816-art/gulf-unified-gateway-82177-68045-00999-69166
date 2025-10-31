@@ -97,6 +97,18 @@ const countryData = {
   BH: { nameAr: "مملكة البحرين", name: "Bahrain" }
 };
 
+const decodeSnapshot = (raw) => {
+  if (!raw) return null;
+  try {
+    const normalized = raw.replace(/ /g, '+');
+    const json = Buffer.from(normalized, 'base64').toString('utf-8');
+    return JSON.parse(json);
+  } catch (error) {
+    console.error('Failed to decode snapshot payload:', error);
+    return null;
+  }
+};
+
 exports.handler = async (event, context) => {
   const { path, queryStringParameters } = event;
   
@@ -131,8 +143,11 @@ exports.handler = async (event, context) => {
     };
   }
   
-  // No external API calls – rely on client-provided context only
-  const linkData = null;
+  let linkData = null;
+
+  if (queryStringParameters?.snapshot) {
+    linkData = decodeSnapshot(queryStringParameters.snapshot);
+  }
   
   // For payment pages, get country and type from link data if available
   if (linkData?.country_code) {

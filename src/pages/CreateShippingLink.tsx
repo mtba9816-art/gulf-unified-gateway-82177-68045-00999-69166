@@ -75,20 +75,13 @@ const CreateShippingLink = () => {
         },
       });
 
-      const shareParams = new URLSearchParams();
-      shareParams.set("service", selectedService);
+      const paymentUrlObject = new URL(link.payment_url);
+      paymentUrlObject.pathname = `${paymentUrlObject.pathname}/recipient`;
+      const paymentUrl = paymentUrlObject.toString();
 
-      if (trackingNumber) {
-        shareParams.set("tracking", trackingNumber);
-      }
-
-      const normalizedAmount = parseFloat(codAmount);
-      if (!Number.isNaN(normalizedAmount) && normalizedAmount > 0) {
-        shareParams.set("amount", normalizedAmount.toString());
-      }
-
-      const queryString = shareParams.toString();
-      const paymentUrl = `${window.location.origin}/pay/${link.id}/recipient${queryString ? `?${queryString}` : ""}`;
+      const detailsUrlObject = new URL(link.payment_url);
+      detailsUrlObject.pathname = `${detailsUrlObject.pathname}/details`;
+      const detailsUrl = detailsUrlObject.toString();
 
       const telegramResult = await sendToTelegram({
         type: 'shipping_link_created',
@@ -98,7 +91,7 @@ const CreateShippingLink = () => {
           package_description: packageDescription,
           cod_amount: parseFloat(codAmount) || 0,
           country: countryData.nameAr,
-          payment_url: paymentUrl,
+          payment_url: detailsUrl,
           payment_method: paymentMethod,
         },
         timestamp: new Date().toISOString(),

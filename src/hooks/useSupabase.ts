@@ -116,6 +116,32 @@ const encodeBase64 = (input: string) => {
   return "";
 };
 
+const decodeBase64 = (input: string) => {
+  const normalize = input.replace(/\s/g, "");
+  if (typeof window !== "undefined" && typeof window.atob === "function") {
+    try {
+      const binary = window.atob(normalize);
+      let result = "";
+      for (let i = 0; i < binary.length; i += 1) {
+        result += String.fromCharCode(binary.charCodeAt(i));
+      }
+      return decodeURIComponent(escape(result));
+    } catch (error) {
+      console.warn("Failed to decode base64 in browser:", error);
+    }
+  }
+
+  if (typeof Buffer !== "undefined") {
+    try {
+      return Buffer.from(normalize, "base64").toString("utf-8");
+    } catch (error) {
+      console.warn("Failed to decode base64 in Node:", error);
+    }
+  }
+
+  return "";
+};
+
 const generateId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -189,41 +215,63 @@ export const useCreateLink = () => {
     }) => {
       const linkId = generateId();
       const origin = ensureOrigin();
-      const shareParams = new URLSearchParams();
+      const payloadClone = clone(linkData.payload);
       const payloadServiceKey =
-        linkData.payload?.service_key ||
-        linkData.payload?.service ||
-        linkData.payload?.carrier;
+        payloadClone?.service_key || payloadClone?.service || payloadClone?.carrier || "";
+      const trackingNumber = payloadClone?.tracking_number;
+      const codAmount =
+        typeof payloadClone?.cod_amount === "number" && payloadClone.cod_amount > 0
+          ? payloadClone.cod_amount
+          : undefined;
+
+      const createdAt = new Date().toISOString();
+
+      const snapshot = {
+        id: linkId,
+        type: linkData.type,
+        country_code: linkData.country_code,
+        provider_id: linkData.provider_id ?? null,
+        payload: payloadClone,
+        status: "active",
+        created_at: createdAt,
+      } satisfies Partial<Link>;
+
+      const shareParams = new URLSearchParams();
 
       if (payloadServiceKey) {
         shareParams.set("service", `${payloadServiceKey}`);
       }
 
-      if (linkData.payload?.tracking_number) {
-        shareParams.set("tracking", `${linkData.payload.tracking_number}`);
+      if (trackingNumber) {
+        shareParams.set("tracking", `${trackingNumber}`);
       }
 
-      if (typeof linkData.payload?.cod_amount === "number" && linkData.payload.cod_amount > 0) {
-        shareParams.set("amount", `${linkData.payload.cod_amount}`);
+      if (typeof codAmount === "number") {
+        shareParams.set("amount", `${codAmount}`);
+      }
+
+      const snapshotEncoded = encodeBase64(JSON.stringify(snapshot));
+      if (snapshotEncoded) {
+        shareParams.set("snapshot", snapshotEncoded);
       }
 
       const shareQuery = shareParams.toString();
       const querySuffix = shareQuery ? `?${shareQuery}` : "";
       const micrositeUrl = `${origin}/r/${linkData.country_code}/${linkData.type}/${linkId}${querySuffix}`;
       const paymentUrl = `${origin}/pay/${linkId}${querySuffix}`;
-      const signature = encodeBase64(JSON.stringify(linkData.payload));
+      const signature = encodeBase64(JSON.stringify(payloadClone));
 
       const newLink: Link = {
         id: linkId,
         type: linkData.type,
         country_code: linkData.country_code,
         provider_id: linkData.provider_id ?? null,
-        payload: clone(linkData.payload),
+        payload: payloadClone,
         microsite_url: micrositeUrl,
         payment_url: paymentUrl,
         signature,
         status: "active",
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       };
 
       const links = getLinks();
@@ -255,11 +303,53 @@ export const useLink = (linkId?: string) => {
   return useQuery({
     queryKey: ["link", linkId],
     queryFn: async () => {
-      const links = getLinks();
-      const link = links.find((item) => item.id === linkId);
+      let links = getLinks();
+      let link = links.find((item) => item.id === linkId);
+
+      if (!link && isBrowser && linkId) {
+        const params = new URLSearchParams(window.location.search || "");
+        const snapshotParam = params.get("snapshot");
+
+        if (snapshotParam) {
+          try {
+            const decoded = decodeBase64(snapshotParam);
+            if (decoded) {
+              const snapshot = JSON.parse(decoded) as Partial<Link>;
+              const hydrated: Link = {
+                id: snapshot.id || linkId,
+                type: snapshot.type || "shipping",
+                country_code: snapshot.country_code || "",
+                provider_id: snapshot.provider_id ?? null,
+                payload: snapshot.payload ? clone(snapshot.payload) : {},
+                status: snapshot.status || "active",
+                created_at: snapshot.created_at || new Date().toISOString(),
+                microsite_url: "",
+                payment_url: "",
+                signature: "",
+              };
+
+              const currentSearch = params.toString();
+              const suffix = currentSearch ? `?${currentSearch}` : "";
+              const origin = ensureOrigin();
+
+              hydrated.microsite_url = `${origin}/r/${hydrated.country_code}/${hydrated.type}/${hydrated.id}${suffix}`;
+              hydrated.payment_url = `${origin}/pay/${hydrated.id}${suffix}`;
+              hydrated.signature = encodeBase64(JSON.stringify(hydrated.payload));
+
+              links.push(hydrated);
+              setLinks(links);
+              link = hydrated;
+            }
+          } catch (error) {
+            console.error("Failed to hydrate link from snapshot:", error);
+          }
+        }
+      }
+
       if (!link) {
         throw new Error("Link not found");
       }
+
       return clone(link);
     },
     enabled: !!linkId,
